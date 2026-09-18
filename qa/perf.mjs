@@ -35,6 +35,10 @@
  *      made the jank percentage swing between 0.55% and 4.81% run to run on an
  *      unchanged page. The sweep now waits for a quiet period with no long task
  *      (QUIET_MS), capped by SETTLE_MAX_MS, and prints when it started and why.
+ *   4. THE SWEEP IS DRIVEN BY REAL WHEEL EVENTS. window.scrollTo moved this
+ *      page 12px in 8 seconds because Lenis reverts a programmatic jump on the
+ *      next frame, so every earlier frame number described a page that never
+ *      scrolled. The script now asserts the sweep reached the bottom.
  *   3. A SECOND PASS MEASURES CLS WITH A STEPPED SWEEP. Section 12 budgets CLS
  *      at exactly 0.00. WP-11 proved that a smooth sweep hides a shift a
  *      stepped sweep exposes (0.0001 against 0.0197 on the same page), and that
@@ -111,6 +115,18 @@ const INSTRUMENT = () => {
   const tick = (t) => {
     if (last >= 0) window.__qa.frames.push({ t, d: t - last });
     last = t;
+    /* WP-15: the 3Dmol approach mark used to live in the sweep loop, which now
+       runs from the harness process because the sweep is driven by real wheel
+       events. It reads one rect per frame and only until it fires once. */
+    if (window.__qa.watching && window.__qa.marks.structureApproach === undefined) {
+      const structure = document.getElementById('structure');
+      if (structure) {
+        const top = structure.getBoundingClientRect().top + window.scrollY;
+        if (window.scrollY + window.innerHeight * 1.5 >= top) {
+          window.__qa.marks.structureApproach = t;
+        }
+      }
+    }
     requestAnimationFrame(tick);
   };
   requestAnimationFrame(tick);
@@ -131,35 +147,46 @@ const INSTRUMENT = () => {
   });
 };
 
-/* Runs in the page. Sweeps from top to bottom over durationMs using rAF, and
-   records the moment the structure section first comes within 1.5 viewport
-   heights, which is when section 9.5 dynamically imports the 3D viewer. */
-const SWEEP = (durationMs) => {
-  return new Promise((done) => {
-    const doc = document.documentElement;
-    const structure = document.getElementById('structure');
+/* WP-15. THE SWEEP IS DRIVEN BY REAL WHEEL EVENTS, NOT window.scrollTo.
+   Measured, on this build at 1440x900 with 6x throttle: an in-page rAF loop
+   calling window.scrollTo for 8 seconds moved the page 12px out of 10916px of
+   scrollable document, because Lenis (spec section 6.3) owns the scroll and
+   reverts a programmatic jump on the next frame. Every frame, jank and long
+   task number taken that way describes a page that never scrolled. Real wheel
+   events are what Lenis consumes, so the sweep is dispatched from the harness
+   process through the CDP input path. The script asserts afterwards that the
+   sweep actually reached the bottom, so this can never fail silently again. */
+const SWEEP_TICK_MS = 40;
+const SWEEP_SETTLE_MS = 1500;   /* Lenis eases after the last wheel event */
+const SWEEP_MIN_COVERAGE = 0.9; /* of the scrollable distance, or the run is void */
+
+async function wheelSweep(page, durationMs) {
+  const scrollable = await page.evaluate(() => {
     window.__qa.marks.sweepStart = performance.now();
-    const step = (now) => {
-      const max = Math.max(0, doc.scrollHeight - window.innerHeight);
-      const elapsed = now - window.__qa.marks.sweepStart;
-      const p = Math.min(1, elapsed / durationMs);
-      window.scrollTo(0, Math.round(max * p));
-      if (structure && window.__qa.marks.structureApproach === undefined) {
-        const top = structure.getBoundingClientRect().top + window.scrollY;
-        if (window.scrollY + window.innerHeight * 1.5 >= top) {
-          window.__qa.marks.structureApproach = now;
-        }
-      }
-      if (p < 1) {
-        requestAnimationFrame(step);
-      } else {
-        window.__qa.marks.sweepEnd = performance.now();
-        done(null);
-      }
-    };
-    requestAnimationFrame(step);
+    window.__qa.watching = true;
+    return Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
   });
-};
+
+  const ticks = Math.max(1, Math.round(durationMs / SWEEP_TICK_MS));
+  /* 15% over, because Lenis eases and a wheel delta is a request, not a jump.
+     Overshoot at the bottom is clamped by the document, so it costs nothing. */
+  const perTick = Math.ceil((scrollable * 1.15) / ticks);
+  const started = Date.now();
+  for (let i = 0; i < ticks; i += 1) {
+    await page.mouse.wheel(0, perTick);
+    const elapsed = Date.now() - started;
+    const due = (i + 1) * SWEEP_TICK_MS;
+    if (elapsed < due) await page.waitForTimeout(due - elapsed);
+    if (elapsed > durationMs) break;
+  }
+  await page.waitForTimeout(SWEEP_SETTLE_MS);
+
+  const reached = await page.evaluate(() => {
+    window.__qa.marks.sweepEnd = performance.now();
+    return window.scrollY;
+  });
+  return { scrollable, reached };
+}
 
 /* WP-15. Records layout shifts from the first tick. Shifts that follow user
    input are excluded, which is what the metric itself does. */
@@ -296,8 +323,16 @@ async function main() {
   );
   console.log('');
 
-  await page.evaluate(SWEEP, SWEEP_MS);
+  const swept = await wheelSweep(page, SWEEP_MS);
   await page.waitForTimeout(500);
+
+  console.log('SWEEP');
+  console.log(
+    '  driven by real wheel events; reached ' + Math.round(swept.reached) + 'px of ' +
+      Math.round(swept.scrollable) + 'px scrollable (' +
+      (swept.scrollable > 0 ? round((swept.reached / swept.scrollable) * 100) : 0) + '%)'
+  );
+  console.log('');
 
   /* WP-15: the boot window, reported by main.ts's reserved region. */
   const bootMeasure = await page.evaluate(() => {
@@ -383,6 +418,13 @@ async function main() {
   /* Only frames produced during the sweep count against the budget. */
   const sweepFrames = data.frames.filter((f) => f.t >= sweepStart && f.t <= sweepEnd).map((f) => f.d);
 
+  if (swept.scrollable > 0 && swept.reached < swept.scrollable * SWEEP_MIN_COVERAGE) {
+    failures.push(
+      'the sweep only reached ' + Math.round(swept.reached) + 'px of ' + Math.round(swept.scrollable) +
+        'px, so it did not sweep the page and no frame number from this run is trustworthy'
+    );
+  }
+
   console.log('FRAMES');
   if (sweepFrames.length < 30) {
     failures.push('only ' + sweepFrames.length + ' frames captured during the sweep, which is too few to judge');
@@ -405,6 +447,17 @@ async function main() {
     }
     if (!(jankPct < BUDGET_JANK_PCT)) {
       failures.push('janked frames ' + round(jankPct) + '% is not under the ' + BUDGET_JANK_PCT + '% budget');
+    }
+
+    /* WP-15: when jank is missed, say where it went. Reported, never budgeted:
+       the percentage above is the budget and it is not softened by this. */
+    const jankFrames = data.frames.filter((f) => f.t >= sweepStart && f.t <= sweepEnd && f.d > JANK_THRESHOLD_MS);
+    if (jankFrames.length > 0) {
+      const inLongTask = jankFrames.filter((f) =>
+        data.longtasks.some((t) => f.t >= t.start - 5 && f.t <= t.start + t.duration + 5)
+      ).length;
+      const worst = jankFrames.map((f) => round(f.d)).sort((a, b) => b - a).slice(0, 8);
+      console.log('  of those, ' + inLongTask + ' landed inside a long task; worst frames: ' + worst.join('ms, ') + 'ms');
     }
   }
 

@@ -22,6 +22,10 @@
  * when reduced motion is on:
  *
  *   - `.reveal` / `.is-revealed`          base.css plus `settleOnLoad` below
+ *
+ * The status line is the one element that is not on that list. It is revealed
+ * by transform alone and is never partially transparent at any instant, for
+ * the Lighthouse contrast reason documented at its construction in `mount`.
  *   - `.fx-split--armed`                  sections.css plus fx/splitText.ts
  *   - `.fx-plasmid--armed`                sections.css plus fx/plasmid.ts
  *
@@ -137,7 +141,20 @@ const WILL_CHANGE_PAD_MS = 200;
  * a visitor who turns the OS setting on mid-timeline still lands settled. There
  * is no code path here that can leave an element at opacity 0.
  */
-function settleOnLoad(el: HTMLElement, delayMs: number): void {
+function settleOnLoad(
+  el: HTMLElement,
+  delayMs: number,
+  opts?: { fadesOpacity?: boolean },
+): void {
+  // The will-change lifecycle below is keyed to the opacity transition, which
+  // is the thing worth hinting and the only property that gives one event per
+  // reveal. An element that does not transition opacity must NOT take that
+  // path: spec section 6.6's second failure mode is a listener waiting for a
+  // `transitionend` that never arrives, and the honest fix is to not register
+  // one rather than to lean on the backstop to mop it up. The status line is
+  // the one such element, for the reason in `mount`.
+  const fadesOpacity = opts?.fadesOpacity ?? true;
+
   if (prefersReducedMotion()) {
     el.classList.add('is-revealed');
     return;
@@ -145,6 +162,14 @@ function settleOnLoad(el: HTMLElement, delayMs: number): void {
 
   const fire = (): void => {
     if (prefersReducedMotion()) {
+      el.classList.add('is-revealed');
+      return;
+    }
+
+    if (!fadesOpacity) {
+      // Nothing hinted, nothing listening, nothing to clean up. The transform
+      // this settles is a single short slide on one line of text, so a
+      // compositor hint would cost more bookkeeping than it saves.
       el.classList.add('is-revealed');
       return;
     }
@@ -334,8 +359,31 @@ export function mount(root: HTMLElement): void {
   actions.appendChild(primaryCta());
   actions.appendChild(ghostCta());
 
-  const status = el('p', 'micro sec-hero__status reveal');
-  status.textContent = copy.hero.status;
+  // THE STATUS LINE IS REVEALED BY TRANSFORM ONLY, AND THAT IS AN
+  // ACCESSIBILITY FIX, NOT A STYLE CHOICE.
+  //
+  // It carries --ink-faint, which spec section 5.2 verifies at 4.93:1 on
+  // --paper: it passes WCAG AA, but with only 0.43 of margin. It is also the
+  // last beat on the timeline at t=2.40s. Lighthouse computes its contrast
+  // score from a single sampled frame, and it was sampling this element
+  // mid-fade, reading the blended foreground rather than the settled one:
+  // WP-14 measured 4.31:1, then 4.02:1, then 2.73:1 across three runs and the
+  // accessibility score sat at 96 instead of the section 12 target of 98.
+  // Three different foregrounds for one element is the signature of a
+  // partially transparent sample, not of a wrong colour.
+  //
+  // So this element never has an opacity below 1 at any instant. It is hidden
+  // before its beat by GEOMETRY instead: the paragraph is the clip box and the
+  // inner span sits below it, exactly the clip-from-below vocabulary WP-08
+  // uses for the headline. Any frame Lighthouse samples therefore reads the
+  // settled 4.93:1. The colour is untouched, and tokens.css is untouched.
+  //
+  // It also deliberately does NOT carry `.reveal`, because `.reveal` is the
+  // opacity-zero initial state this element must never have.
+  const status = el('p', 'micro sec-hero__status');
+  const statusLine = el('span', 'sec-hero__status-line');
+  statusLine.textContent = copy.hero.status;
+  status.appendChild(statusLine);
 
   left.appendChild(kicker);
   left.appendChild(title);
@@ -370,7 +418,7 @@ export function mount(root: HTMLElement): void {
 
   settleWordsOnLoad(lede, { staggerMs: STAGGER_LEDE_MS, delayMs: T_LEDE_MS });
   settleOnLoad(actions, T_ACTIONS_MS);
-  settleOnLoad(status, T_STATUS_MS);
+  settleOnLoad(status, T_STATUS_MS, { fadesOpacity: false });
 
   /* --- The map, on its own timeline -------------------------------------- */
 

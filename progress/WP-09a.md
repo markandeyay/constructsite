@@ -143,9 +143,10 @@ correct across a resize.
 
 Playwright with Chromium against a real `vite preview` build of `dist/`, at
 375x812, 900x1200 and 1440x900, each with and without
-`prefers-reduced-motion: reduce`. 168 checks, 0 failures. The suite now
-includes a pairwise bounding-box intersection assertion across eleven scroll
-positions per viewport.
+`prefers-reduced-motion: reduce`. 192 checks, 0 failures. The suite asserts
+pairwise bounding-box intersection across eleven scroll positions per viewport,
+that the status line never dips below opacity 1 in any sampled frame, and that
+no hero element is left holding `will-change`.
 
 ```
 --- 375px ---
@@ -159,6 +160,9 @@ positions per viewport.
   [PASS] right column data-depth=far  far
   [PASS] h1 rides the far layer  closest far ancestor found
   [PASS] h1 carries NO data-depth of its own (no nested transform)  null
+  [PASS] status line does NOT carry .reveal (no opacity-zero initial state)  reveal=false
+  [PASS] status line never dips below opacity 1 in ANY sampled frame  min sampled opacity=1
+  [PASS] status line keeps --ink-faint unchanged  rgb(101, 110, 119)
   [PASS] kicker string from copy.ts  DESIGN AUTOMATION FOR BIOLOGY
   [PASS] lede string from copy.ts  Construct turns plain-English intent into ...
   [PASS] status string from copy.ts  LIVE · OPEN SOURCE · MIT LICENSED
@@ -171,10 +175,11 @@ positions per viewport.
   [PASS] measured CLS is exactly 0.00  CLS=0.0000
   [PASS] no-motion class matches emulation  no-motion=false
   [PASS] one column below 901px  335px
-  [PASS] visual sits BELOW the copy  copyBottom=707 visualTop=755
+  [PASS] visual sits BELOW the copy  copyBottom=711 visualTop=759
   [PASS] map is 300px square below 901px  300px
   [PASS] no two hero element boxes intersect, at any scroll position  11 scroll positions clean
   [PASS] after a full scroll sweep, NO element in the hero is below opacity 1  0 hidden
+  [PASS] no hero element is left holding will-change  all released
   [PASS] zero console errors  0
   [PASS] zero unhandled rejections and page errors  0
 
@@ -189,6 +194,9 @@ positions per viewport.
   [PASS] right column data-depth=far  far
   [PASS] h1 rides the far layer  closest far ancestor found
   [PASS] h1 carries NO data-depth of its own (no nested transform)  null
+  [PASS] status line does NOT carry .reveal (no opacity-zero initial state)  reveal=false
+  [PASS] status line never dips below opacity 1 in ANY sampled frame  min sampled opacity=1
+  [PASS] status line keeps --ink-faint unchanged  rgb(101, 110, 119)
   [PASS] kicker string from copy.ts  DESIGN AUTOMATION FOR BIOLOGY
   [PASS] lede string from copy.ts  Construct turns plain-English intent into ...
   [PASS] status string from copy.ts  LIVE · OPEN SOURCE · MIT LICENSED
@@ -201,10 +209,11 @@ positions per viewport.
   [PASS] measured CLS is exactly 0.00  CLS=0.0000
   [PASS] no-motion class matches emulation  no-motion=true
   [PASS] one column below 901px  335px
-  [PASS] visual sits BELOW the copy  copyBottom=707 visualTop=755
+  [PASS] visual sits BELOW the copy  copyBottom=711 visualTop=759
   [PASS] map is 300px square below 901px  300px
   [PASS] no two hero element boxes intersect, at any scroll position  11 scroll positions clean
   [PASS] after a full scroll sweep, NO element in the hero is below opacity 1  0 hidden
+  [PASS] no hero element is left holding will-change  all released
   [PASS] zero console errors  0
   [PASS] zero unhandled rejections and page errors  0
 
@@ -219,6 +228,9 @@ positions per viewport.
   [PASS] right column data-depth=far  far
   [PASS] h1 rides the far layer  closest far ancestor found
   [PASS] h1 carries NO data-depth of its own (no nested transform)  null
+  [PASS] status line does NOT carry .reveal (no opacity-zero initial state)  reveal=false
+  [PASS] status line never dips below opacity 1 in ANY sampled frame  min sampled opacity=1
+  [PASS] status line keeps --ink-faint unchanged  rgb(101, 110, 119)
   [PASS] kicker string from copy.ts  DESIGN AUTOMATION FOR BIOLOGY
   [PASS] lede string from copy.ts  Construct turns plain-English intent into ...
   [PASS] status string from copy.ts  LIVE · OPEN SOURCE · MIT LICENSED
@@ -235,6 +247,7 @@ positions per viewport.
   [PASS] map is 300px square below 901px  300px
   [PASS] no two hero element boxes intersect, at any scroll position  11 scroll positions clean
   [PASS] after a full scroll sweep, NO element in the hero is below opacity 1  0 hidden
+  [PASS] no hero element is left holding will-change  all released
   [PASS] zero console errors  0
   [PASS] zero unhandled rejections and page errors  0
 
@@ -249,6 +262,9 @@ positions per viewport.
   [PASS] right column data-depth=far  far
   [PASS] h1 rides the far layer  closest far ancestor found
   [PASS] h1 carries NO data-depth of its own (no nested transform)  null
+  [PASS] status line does NOT carry .reveal (no opacity-zero initial state)  reveal=false
+  [PASS] status line never dips below opacity 1 in ANY sampled frame  min sampled opacity=1
+  [PASS] status line keeps --ink-faint unchanged  rgb(101, 110, 119)
   [PASS] kicker string from copy.ts  DESIGN AUTOMATION FOR BIOLOGY
   [PASS] lede string from copy.ts  Construct turns plain-English intent into ...
   [PASS] status string from copy.ts  LIVE · OPEN SOURCE · MIT LICENSED
@@ -265,6 +281,7 @@ positions per viewport.
   [PASS] map is 300px square below 901px  300px
   [PASS] no two hero element boxes intersect, at any scroll position  11 scroll positions clean
   [PASS] after a full scroll sweep, NO element in the hero is below opacity 1  0 hidden
+  [PASS] no hero element is left holding will-change  all released
   [PASS] zero console errors  0
   [PASS] zero unhandled rejections and page errors  0
 
@@ -279,6 +296,9 @@ positions per viewport.
   [PASS] right column data-depth=far  far
   [PASS] h1 rides the far layer  closest far ancestor found
   [PASS] h1 carries NO data-depth of its own (no nested transform)  null
+  [PASS] status line does NOT carry .reveal (no opacity-zero initial state)  reveal=false
+  [PASS] status line never dips below opacity 1 in ANY sampled frame  min sampled opacity=1
+  [PASS] status line keeps --ink-faint unchanged  rgb(101, 110, 119)
   [PASS] kicker string from copy.ts  DESIGN AUTOMATION FOR BIOLOGY
   [PASS] lede string from copy.ts  Construct turns plain-English intent into ...
   [PASS] status string from copy.ts  LIVE · OPEN SOURCE · MIT LICENSED
@@ -293,9 +313,10 @@ positions per viewport.
   [PASS] two columns at 901px and above  572px 467.984px
   [PASS] split is 55/45  55.0 / 45.0
   [PASS] map fills the right column, capped at 500px  468px in a 468px column
-  [INFO] hero copy column bottom edge  statusBottom=920 viewport=900
+  [INFO] hero copy column bottom edge  statusBottom=847 viewport=900
   [PASS] no two hero element boxes intersect, at any scroll position  11 scroll positions clean
   [PASS] after a full scroll sweep, NO element in the hero is below opacity 1  0 hidden
+  [PASS] no hero element is left holding will-change  all released
   [PASS] zero console errors  0
   [PASS] zero unhandled rejections and page errors  0
 
@@ -310,6 +331,9 @@ positions per viewport.
   [PASS] right column data-depth=far  far
   [PASS] h1 rides the far layer  closest far ancestor found
   [PASS] h1 carries NO data-depth of its own (no nested transform)  null
+  [PASS] status line does NOT carry .reveal (no opacity-zero initial state)  reveal=false
+  [PASS] status line never dips below opacity 1 in ANY sampled frame  min sampled opacity=1
+  [PASS] status line keeps --ink-faint unchanged  rgb(101, 110, 119)
   [PASS] kicker string from copy.ts  DESIGN AUTOMATION FOR BIOLOGY
   [PASS] lede string from copy.ts  Construct turns plain-English intent into ...
   [PASS] status string from copy.ts  LIVE · OPEN SOURCE · MIT LICENSED
@@ -324,9 +348,10 @@ positions per viewport.
   [PASS] two columns at 901px and above  572px 467.984px
   [PASS] split is 55/45  55.0 / 45.0
   [PASS] map fills the right column, capped at 500px  468px in a 468px column
-  [INFO] hero copy column bottom edge  statusBottom=944 viewport=900
+  [INFO] hero copy column bottom edge  statusBottom=862 viewport=900
   [PASS] no two hero element boxes intersect, at any scroll position  11 scroll positions clean
   [PASS] after a full scroll sweep, NO element in the hero is below opacity 1  0 hidden
+  [PASS] no hero element is left holding will-change  all released
   [PASS] zero console errors  0
   [PASS] zero unhandled rejections and page errors  0
 
@@ -485,3 +510,107 @@ The suite now carries a pairwise bounding-box intersection assertion over all
 six laid-out hero elements, run at eleven scroll positions per viewport, at
 375, 900 and 1440, in both motion modes. It fails on any intersection over
 0.5px. Total is now 168 checks, 0 failures.
+
+---
+
+## Reopened 2026-09-18: Lighthouse contrast on the status line
+
+Reported by WP-14: Lighthouse Accessibility measured 96, 100, 96, 96 over four
+runs against the spec section 12 target of 98. Every failing run named one
+node, always the same one, the hero status line, and reported three different
+contrast ratios for it: 4.31:1, then 4.02:1, then 2.73:1.
+
+### Diagnosis, which WP-14 had right
+
+Three different foregrounds for one element is the signature of a partially
+transparent sample, not of a wrong colour. `--ink-faint` measures 4.93:1 on
+`--paper` and passes AA in its settled state, with 0.43 of margin. The status
+line is the last beat on the load timeline at t=2.40s, and its old reveal was
+`.reveal` / `.is-revealed`, which transitions opacity from 0 to 1 over 600ms.
+Lighthouse scores contrast from a single sampled frame, and it was landing
+inside that window. The site was already meeting WCAG AA; what failed was a
+number derived from one frame of an animation.
+
+This is a genuine three-way tension in the spec, not a defect in any one
+package: section 7.1 wants this beat at t=2.40s, section 5.2 fixes the colour
+at a value with very little headroom, and section 12 wants a single-frame
+score.
+
+### Fix: WP-14's option 1, transform only
+
+The status line no longer animates opacity at all, and never holds a value
+below 1 at any instant. It is hidden before its beat by GEOMETRY: the
+paragraph is an `overflow: hidden` clip box and the inner span sits below it
+on a transform, which is the same clip-from-below vocabulary WP-08 already
+uses for the headline. Any frame Lighthouse samples now reads the settled
+colour, because there is no other colour to read.
+
+Three things stayed untouched on purpose: `--ink-faint` (it is correct and it
+is the spec's own verified value), `tokens.css` (not mine, and nothing in it
+needed changing), and the t=2.40s beat itself. Verified by screenshot that the
+line is still fully absent at t=1.5s and fully present at t=4.0s, so the
+motion reads exactly as before.
+
+I did not take WP-14's option 2, the 0.92 starting opacity, and agree with
+their reasoning: it leaves the element permanently below full opacity, which
+is both a hack and a live risk to the "nothing sits at opacity 0" family of
+reduced-motion checks.
+
+### The transitionend interaction, which was a real hazard
+
+The coordinator flagged this and it was correct to. `settleOnLoad`'s
+will-change lifecycle is keyed to the opacity `transitionend`, exactly as spec
+section 6.6 prescribes, and removing the opacity transition would have left a
+listener waiting for an event that can never arrive. The `setTimeout` backstop
+would have cleaned it up, but leaning on the backstop for the normal path is
+the wrong shape.
+
+`settleOnLoad` therefore takes a `{ fadesOpacity }` option, and the status line
+passes `false`. On that path nothing is hinted, nothing is listened for and
+nothing needs cleaning up: the transform is a single short slide on one line of
+text, so a compositor hint would cost more bookkeeping than it saves. The
+element also no longer carries `.reveal`, because `.reveal` IS the opacity-zero
+initial state it must never have.
+
+The suite now asserts positively that no hero element is left holding
+`will-change` after the timeline. It passes in all six passes.
+
+### Measured after
+
+Lighthouse via the repo's own `@lhci/cli` 0.14.0 toolchain, against a real
+`vite preview` build, six consecutive default runs:
+
+```
+run 1: accessibility=100  color-contrast=1
+run 2: accessibility=100  color-contrast=1
+run 3: accessibility=100  color-contrast=1
+run 4: accessibility=100  color-contrast=1
+run 5: accessibility=100  color-contrast=1
+run 6: accessibility=100  color-contrast=1
+```
+
+Six of six at 100, against 96 / 100 / 96 / 96 before. The `color-contrast`
+audit passes with zero failing nodes in every run, where it previously named
+this element.
+
+Opacity sampled on every animation frame for the first 5 seconds, at 1440x900:
+
+```
+reduced-motion off   minimum opacity of .sec-hero__status and its inner span = 1
+                     transform slides 22.5px -> 0 starting at t=2.42s
+reduced-motion on    settled on the first sampled frame, transform 0
+```
+
+Own suite: 192 checks, 0 failures. CLS still exactly 0.0000 in all six passes
+(the clip box reserves its space whether or not the line has revealed), no
+element below opacity 1, no box intersections at any of eleven scroll positions
+per viewport, nothing holding `will-change`, zero console errors, zero
+unhandled rejections.
+
+### One note on tooling
+
+`lhci collect` and the `lighthouse` CLI both throw `EPERM` on this Windows box
+when chrome-launcher tries to remove its own temp directory, AFTER the audit
+has completed and the report has been written. The JSON reports are complete
+and correct; only the cleanup step fails. Scores above were read from those
+reports. Worth knowing before someone reads the stack trace as a failed audit.

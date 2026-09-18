@@ -12,3 +12,6 @@ BUILD_CONTRACT.md
 
 .vercel
 .env*
+
+# Lighthouse CI output
+.lighthouseci/

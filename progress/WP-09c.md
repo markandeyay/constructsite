@@ -441,3 +441,144 @@ entry of 0.2222 whose only source is `BODY`, so the whole document moves once.
 That is page level, most likely the scroll driver or the header, and it does not
 reproduce with motion allowed. Logged here rather than chased, since this
 package owns neither file.
+
+---
+
+# WP-09c REOPENED AGAIN: the mini map class was added at mount time
+
+Reopened 2026-09-18T04:20:00Z. Closed again 2026-09-18T04:40:00Z.
+
+WP-15 found while profiling that `fx-plasmid--mini` was being added by
+`mountPlasmid` rather than being present in this section's markup. The box was
+therefore laid out at the full 560px and collapsed to 320px once the class
+landed, shrinking `#how` by 240px after first paint. It scored CLS 0.0000 only
+because scroll anchoring absorbed it: WP-15 caught the scroll position moving
+from 3182 to 2942 at exactly that instant, which is the browser compensating.
+
+That is the same defect class as the containing-block flip fixed in the previous
+reopening: laid out one way at first paint, then changed by JavaScript. A metric
+that reads zero because the browser hid the reflow is not a metric that passed.
+
+## The fix
+
+One line in `how.ts`. The container now carries both classes in the markup,
+before `mountPlasmid` runs:
+
+```ts
+const box = el('div', 'fx-plasmid fx-plasmid--mini sec-how__map');
+```
+
+`fx-plasmid` reserves the aspect-ratio box and `fx-plasmid--mini` sets its
+width. WP-06 required the first in the markup for exactly this reason; the
+modifier has to be there for the same reason, because on its own the reserved
+box is reserved at the wrong size.
+
+Nothing else changed. `mountPlasmid(box, { mini: true })` still passes the
+option, so `fx/plasmid.ts` keeps its own contract and simply finds the class
+already present.
+
+## Measured: the box is right from the first frame
+
+Probe method: a `requestAnimationFrame` loop installed by an init script before
+first paint, sampling the box rect, its class list, the height of `#how` and
+`window.scrollY` on EVERY frame, so a post-paint collapse cannot hide between
+polls. The page was parked at scroll 3182, where WP-15 saw the jump, so scroll
+anchoring had something to compensate if anything still reflowed.
+
+```
+frames sampled: 241
+first frame the box exists:        {"t":122,"w":320,"h":320,"mini":true,"howH":5455,"y":0,"kids":0}
+first frame the map has rendered:  {"t":169,"w":320,"h":320,"mini":true,"howH":5455,"y":3182,"kids":1}
+distinct box widths across every frame:   [320]
+distinct fx-plasmid--mini values:         [true]
+distinct #how heights across every frame: [5455]
+unrequested scroll position changes: 1
+   0 -> 3182 at t=152ms (box w 320 -> 320)
+```
+
+Reading it:
+
+- The box measures 320x320 on the very first frame it exists, 47ms before
+  seqviz renders anything into it. It is never 560.
+- `fx-plasmid--mini` is true on every sampled frame. There is no frame where it
+  is absent.
+- `#how` measures 5455px on every frame. The 240px shrink is gone, not hidden.
+- The only scroll position change in the whole run is the one the probe itself
+  asked for, 0 to 3182. There is no compensating jump at mount, and the box
+  width either side of it is 320 to 320.
+
+## CLS re-measured, stepped sweep, four wide viewports, both motion modes
+
+Same method as the previous reopening: `PerformanceObserver` on `layout-shift`
+installed before first paint, `buffered: true`, `hadRecentInput` discarded,
+discrete jumps of one viewport third with a settle between them, fresh context
+per viewport. The attribution filter now also catches any node carrying an
+`fx-plasmid` class, so the map cannot hide behind a class name this section does
+not own.
+
+```
+STEPPED sweep, motion allowed:
+  901x900 motion    CLS total 0.0000   attributable to this section 0.000000
+  1024x768 motion   CLS total 0.0000   attributable to this section 0.000000
+  1440x900 motion   CLS total 0.0000   attributable to this section 0.000000
+  1920x1080 motion  CLS total 0.0000   attributable to this section 0.000000
+STEPPED sweep, reduced motion:
+  901x900 reduced   CLS total 0.3552   attributable to this section 0.000000
+  1024x768 reduced  CLS total 0.2797   attributable to this section 0.000000
+  1440x900 reduced  CLS total 0.2222   attributable to this section 0.000000
+  1920x1080 reduced CLS total 0.1875   attributable to this section 0.000000
+console errors: 0   page errors: 0
+```
+
+The reduced-motion whole-page figures are unchanged and remain the page-level
+`BODY` shift already logged for WP-11 and WP-15. None of it is this section.
+
+## The pin and the five steps, re-proved
+
+```
+=== 1440x900, reduced motion OFF ===
+sec-how--staged present: true
+ScrollTrigger total=1 pins=1 scrubs=1
+ranges: [{"start":1563,"end":6063,"pinned":true}]
+pin: {"start":1563,"end":6063,"distance":4500,"vh":900,"pinClass":"sec-how__inner"}
+expected pinned distance 5 * vh = 4500
+  p=0.0 y=1563 activeStep=0 visOn=0 typedChars=0 partsIn=0 innerTop=472
+  p=0.1 y=2013 activeStep=0 visOn=0 typedChars=32 partsIn=0 innerTop=108
+  p=0.2 y=2463 activeStep=0 visOn=0 typedChars=53 partsIn=0 innerTop=108
+  p=0.3 y=2913 activeStep=1 visOn=1 typedChars=53 partsIn=2 innerTop=108
+  p=0.4 y=3363 activeStep=1 visOn=1 typedChars=53 partsIn=3 innerTop=108
+  p=0.5 y=3813 activeStep=2 visOn=2 typedChars=53 partsIn=3 innerTop=108
+  p=0.6 y=4263 activeStep=2 visOn=2 typedChars=53 partsIn=3 innerTop=108
+  p=0.7 y=4713 activeStep=3 visOn=3 typedChars=53 partsIn=6 innerTop=108
+  p=0.8 y=5163 activeStep=3 visOn=3 typedChars=53 partsIn=7 innerTop=108
+  p=0.9 y=5613 activeStep=4 visOn=4 typedChars=53 partsIn=9 innerTop=108
+  p=1.0 y=6063 activeStep=4 visOn=4 typedChars=53 partsIn=10 innerTop=108
+distinct active steps across the pinned range: [0,1,2,3,4]  ALL FIVE ADVANCE
+pinned innerTop mid-range: [108]
+active step colour / border at p=0.5: rgb(20, 23, 26) | 2px rgb(31, 107, 74)
+inactive step colour / border: rgb(101, 110, 119) | rgb(226, 223, 217)
+
+=== 900px and 375px, reduced motion OFF ===
+ScrollTrigger total=0 pins=0 scrubs=0 at both
+all five steps readable: true at both
+elements at opacity 0 inside #how: 0 at both
+
+=== 1440px and 375px, reduced motion ON ===
+ScrollTrigger total=0 pins=0 scrubs=0 at both
+html.no-motion: true at both
+all five steps readable: true at both
+elements at opacity 0 inside #how: 0 at both
+
+console errors: 0
+page errors / unhandled rejections: 0
+```
+
+The pinned distance is still 4500px against a 900px viewport, which is five
+viewport heights, the range is unchanged from before this fix, and all five
+steps still advance in order.
+
+`npx tsc --noEmit` clean. `npm run build` clean. The harness, the CLS script,
+the box probe and the verification script were all deleted. Only `how.ts`
+changed: the `sections.css` block was not touched in this reopening, and
+`main.ts`, `index.html` and `responsive.css` have never been touched by this
+package. The preview server ran on port 5198 and was stopped by that one PID.

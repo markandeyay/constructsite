@@ -565,11 +565,55 @@
   text-decoration: none;
 }
 
+/* TRANSFORM-ONLY REVEAL. This element never sits at a partial opacity, at any
+   instant, and that is deliberate. --ink-faint measures 4.93:1 on --paper
+   (spec section 5.2), which passes AA with 0.43 of margin, and this is the
+   last beat on the load timeline at t=2.40s. Lighthouse scores contrast from
+   one sampled frame and was catching the old opacity fade in progress,
+   reporting 4.31:1, 4.02:1 and 2.73:1 on three runs of the same page. Hiding
+   the line by geometry instead of by transparency means every frame reads the
+   settled colour. Nothing here changes --ink-faint, and no token is redefined.
+
+   The paragraph is the clip box; the inner span is the only thing that moves.
+   The padding plus the equal negative margin gives the line somewhere to sit
+   without changing the line box, the same arrangement WP-08 uses. */
 .sec-hero__status {
   display: block;
   margin: 0;
   margin-block-start: var(--sp-6);
   color: var(--ink-faint);
+  overflow: hidden;
+  padding-bottom: 0.2em;
+  margin-bottom: -0.2em;
+}
+
+/* THE SETTLED STATE IS THE DEFAULT for opacity: this element has no opacity
+   rule at all, anywhere in this block, so it is always fully opaque. Only the
+   transform is armed. */
+.sec-hero__status-line {
+  display: inline-block;
+  transform: translateY(125%);
+}
+
+/* (0,2,0), and it follows the armed rule so it wins on order. */
+.is-revealed .sec-hero__status-line {
+  transform: translateY(0);
+  transition: transform var(--dur-reveal) var(--ez-out-expo);
+}
+
+/* Reduced motion, belt and braces. Nothing to un-hide here in the opacity
+   sense, because nothing was ever transparent; this simply lands the line in
+   place with no transition (spec section 13.1). */
+.no-motion .sec-hero__status-line {
+  transform: translateY(0);
+  transition: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sec-hero__status .sec-hero__status-line {
+    transform: translateY(0);
+    transition: none;
+  }
 }
 
 .sec-hero__visual {

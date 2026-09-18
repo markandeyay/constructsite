@@ -192,7 +192,15 @@ function buildRetrieve(vis: HTMLElement): HTMLElement[] {
  * already there.
  */
 function buildGenerate(vis: HTMLElement): void {
-  const box = el('div', 'fx-plasmid sec-how__map');
+  // BOTH classes belong in the markup, not just `fx-plasmid`. `fx-plasmid`
+  // reserves the aspect-ratio box and `fx-plasmid--mini` sets its width, and
+  // `mountPlasmid` would otherwise add the modifier itself at mount time: the
+  // box would be laid out at the full 560px and collapse to 320px after first
+  // paint. That reflow currently scores no CLS only because scroll anchoring
+  // absorbs it, which is luck rather than correctness, and it is the same
+  // defect class as the containing-block flip fixed earlier in this section.
+  // Both classes here means the box is right from the first frame.
+  const box = el('div', 'fx-plasmid fx-plasmid--mini sec-how__map');
   vis.appendChild(box);
 
   observeOnce(
