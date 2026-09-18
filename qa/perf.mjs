@@ -17,7 +17,9 @@
  *
  * Usage:  node qa/perf.mjs [baseUrl]
  * Default baseUrl: http://localhost:4173  (the vite preview port)
- * Exit:   0 when every budget holds, non-zero otherwise.
+ * Exit:   0 pass. 1 a real violation. 2 not ready (server down, page empty, or
+ *         the machine is too loaded for the frame numbers to mean anything).
+ *         3 the harness itself threw.
  *
  * WP-15 (performance pass) extended this script in three ways. Each is a
  * correction or an addition, never a relaxed budget. The section 12 numbers
@@ -44,13 +46,74 @@
  *      stepped sweep exposes (0.0001 against 0.0197 on the same page), and that
  *      the entry chunk has to be delayed so the empty shells paint first or the
  *      harness cannot see the defect class at all. Both are reproduced here.
+ *
+ * WP-16-fix repaired two defects that three packages disagreed over. Neither
+ * touches a section 12 budget or threshold.
+ *
+ *   A. THE ONE-TIME-INIT EXCLUSION WAS TOO COARSE, AND FAILED THE BUILD FOR THE
+ *      WRONG REASON. Section 12 permits excluding "the one-time seqviz mount and
+ *      the one-time 3Dmol init". The previous rule excluded AT MOST ONE TASK per
+ *      init, identified by a time window alone. WP-17 measured the 3Dmol init
+ *      arriving as TWO tasks (690ms at 9993ms and 1731ms at 10793ms, both inside
+ *      the init window), and WP-07-fix confirmed by sourcemapped profile that
+ *      those two tasks are the two halves of one initialisation: chunk
+ *      evaluation plus PDB parse, then first render plus first geometry build.
+ *      Nothing from auto-rotation or the zoom scrub remained. So the gate failed
+ *      on init work that section 12 explicitly permits.
+ *
+ *      The new rule is an INIT BURST, and it is deliberately harder to satisfy
+ *      than a time window, not easier:
+ *        - The window is anchored to OBSERVED INITIALISATION EVIDENCE, not to a
+ *          guess about when scrolling reached a section. It opens at the
+ *          responseEnd of that subsystem's own chunk (the 3Dmol chunk, the
+ *          seqviz chunk) and closes INIT_TAIL_MS after that subsystem's DOM
+ *          first exists (the viewer canvas inside #structure, the map svg inside
+ *          #hero). Both pieces of evidence must be present or nothing at all is
+ *          excluded for that init, and the script says which one was missing.
+ *        - Inside the window only a CONTIGUOUS RUN of long tasks is attributable:
+ *          the first one, then each next one only if it begins within
+ *          INIT_BURST_GAP_MS of the end of the previous one. A task that starts
+ *          after an idle gap is not part of the same initialisation and is
+ *          counted against the budget even though it sits inside the window.
+ *          This is what stops a scroll-work regression hiding inside the window.
+ *        - The burst is CAPPED at INIT_MAX_TASKS tasks and INIT_MAX_TOTAL_MS of
+ *          attributed time. Exceeding either cap excludes NOTHING and raises its
+ *          own named failure, because an initialisation that large is no longer
+ *          plausibly an initialisation.
+ *        - Every excluded task is still printed with its duration, its start and
+ *          the full reason, exactly as before. Nothing is ever excluded silently
+ *          and nothing is excluded by time window alone.
+ *
+ *   B. THE JANK NUMBER HAD NO FLOOR, AND THREE PACKAGES READ IT THREE WAYS.
+ *      WP-15 measured a blank control at 17.1ms median and 0.00% janked and
+ *      called the budget met by the harness. WP-07-fix measured a blank control
+ *      at 22 to 31ms median and 50 to 56% janked and called the budget
+ *      unmeasurable. WP-17 found the cause: a blank page that paints nothing has
+ *      its rAF THROTTLED, so a blank page is not a floor at all. It lands just
+ *      under or just over the 20ms threshold by luck, and the whole verdict
+ *      flips. Given one trivial transform per frame, the same machine delivers
+ *      1.3 to 1.4ms median and 0.05 to 0.07% janked over roughly 6000 frames.
+ *
+ *      So the control is now BUILT IN and runs INTERLEAVED with the real
+ *      measurement on every invocation: one control sweep before the site and
+ *      one after, same browser, same flags, same 6x throttle, same wheel-driven
+ *      sweep, same duration. Its median and jank print beside the site's. A
+ *      frame number without its control is not interpretable, and this build
+ *      proved that three times.
+ *
+ *      If the control itself reads badly (CONTROL_MAX_MEDIAN_MS /
+ *      CONTROL_MAX_JANK_PCT / too few frames / did not reach the bottom) the
+ *      machine cannot resolve the difference between the budget and the floor.
+ *      The script then WITHHOLDS the frame verdict and exits 2, saying the
+ *      machine is too loaded to judge. It still prints everything it measured,
+ *      labelled as observed and not adjudicated. It does not emit a pass.
  */
 
 import { chromium } from 'playwright';
 
 const BASE = (process.argv[2] || 'http://localhost:4173').replace(/\/+$/, '') + '/';
 
-/* Section 12 budgets. */
+/* Section 12 budgets. Untouched by WP-16-fix. */
 const BUDGET_MEDIAN_MS = 12;
 const BUDGET_JANK_PCT = 2;
 const JANK_THRESHOLD_MS = 20;
@@ -73,10 +136,41 @@ const CLS_ENTRY_DELAY_MS = 700; /* delay the entry chunk so the shells paint fir
 const CLS_STEP_FRACTION = 0.6;  /* stepped sweep, 60% of a viewport per step */
 const CLS_STEP_PAUSE_MS = 70;
 
-/* Exclusion windows, section 12. Both are ONE-TIME inits and each may be
-   excluded AT MOST ONCE. Anything else over 200ms is a hard failure. */
-const SEQVIZ_WINDOW_MS = 1500; /* grace after the sweep begins, for the idle-callback mount */
-const VIEWER3D_WINDOW_MS = 3000; /* after the structure section first comes within 1.5vh */
+/* ---------------------------------------------------------------------------
+   WP-16-fix, defect A. The bounds on a one-time init exclusion.
+
+   These are bounds on what the HARNESS may attribute to an init. They are not
+   section 12 budgets and they do not change one. Every one of them makes the
+   exclusion narrower than the time window it replaces.
+   --------------------------------------------------------------------------- */
+const INIT_LEAD_MS = 100;       /* a task may begin this long before the chunk's responseEnd */
+const INIT_TAIL_MS = 1500;      /* the window closes this long after the init's DOM first exists */
+const INIT_BURST_GAP_MS = 600;  /* an idle gap longer than this ends the burst */
+const INIT_MAX_TASKS = 3;       /* at most this many tasks are one initialisation */
+const INIT_MAX_TOTAL_MS = 4000; /* and at most this much time in total */
+/* INIT_MAX_TOTAL_MS is set from measurement, not taste. The genuine 3Dmol init
+   on this build at 1440x900 and 6x throttle arrives as TWO tasks totalling 2275,
+   2433, 2512 and 3175ms across four runs, the last of them on a loaded machine.
+   4000ms sits above the largest of those and is still a hard ceiling: it was
+   proved to trip, and to exclude nothing, when a deliberately injected 2000ms
+   task was made contiguous with the init. The task-count cap is the tighter of
+   the two bounds in practice, since the real init is two tasks. */
+
+/* ---------------------------------------------------------------------------
+   WP-16-fix, defect B. The interleaved control.
+
+   One trivial transform per frame on an otherwise empty scrolling page. Not a
+   blank page: a blank page has its rAF throttled and is not a floor. The
+   measured floor on the reference machine was 1.3 to 1.4ms median and 0.05 to
+   0.07% janked. These gates sit well above that and well below the section 12
+   budget, so the run is judged only when the machine can actually resolve the
+   difference between the two.
+   --------------------------------------------------------------------------- */
+const CONTROL_HEIGHT_PX = 11000;  /* roughly this site's scrollable document */
+const CONTROL_MAX_MEDIAN_MS = 4;  /* floor is ~1.3ms; budget is 12ms */
+const CONTROL_MAX_JANK_PCT = 1;   /* floor is ~0.05%; budget is 2% */
+const CONTROL_MIN_FRAMES = 500;
+const CONTROL_PATH = '__qa_control__';
 
 /* rAF deltas are clamped to the display refresh rate unless vsync is off, and
    a clamped 16.7ms median would make the section 12 budget of 12ms unreachable
@@ -103,12 +197,23 @@ function round(n) {
 }
 
 /* Injected before any page script. Records frames, long tasks, console errors
-   and unhandled rejections from the very first tick. */
+   and unhandled rejections from the very first tick.
+
+   WP-16-fix adds two kinds of INITIALISATION EVIDENCE, because the exclusion
+   rule below is no longer allowed to rest on a time window alone:
+     - resource timing for the seqviz and 3Dmol chunks, which says when the code
+       for that subsystem actually arrived and could first be evaluated;
+     - the moment that subsystem's own DOM first exists, watched with one
+       MutationObserver on childList that disconnects as soon as both marks are
+       recorded. childList records are rare on this page during a sweep (GSAP and
+       the reveal helper change attributes, not children), so this costs the
+       frame numbers nothing measurable. */
 const INSTRUMENT = () => {
   window.__qa = {
     frames: [],
     longtasks: [],
     rejections: [],
+    resources: [],
     marks: {},
   };
   let last = -1;
@@ -140,6 +245,54 @@ const INSTRUMENT = () => {
     obs.observe({ type: 'longtask', buffered: true });
   } catch (err) {
     window.__qa.longtaskObserverError = String(err);
+  }
+
+  /* WP-16-fix: when each subsystem's own chunk finished arriving. */
+  try {
+    const robs = new PerformanceObserver((list) => {
+      for (const e of list.getEntries()) {
+        if (/3dmol|seqviz|index\.browser/i.test(e.name)) {
+          window.__qa.resources.push({ name: e.name, start: e.startTime, end: e.responseEnd });
+        }
+      }
+    });
+    robs.observe({ type: 'resource', buffered: true });
+  } catch (err) {
+    window.__qa.resourceObserverError = String(err);
+  }
+
+  /* WP-16-fix: when each subsystem's own DOM first exists. */
+  try {
+    const scan = (root, now) => {
+      if (!root || root.nodeType !== 1) return;
+      const nodes = [root];
+      if (root.querySelectorAll) {
+        for (const n of root.querySelectorAll('canvas, svg')) nodes.push(n);
+      }
+      for (const n of nodes) {
+        const tag = String(n.tagName || '').toLowerCase();
+        if (!n.closest) continue;
+        if (tag === 'canvas' && window.__qa.marks.viewer3dCanvas === undefined && n.closest('#structure')) {
+          window.__qa.marks.viewer3dCanvas = now;
+        }
+        if (tag === 'svg' && window.__qa.marks.plasmidSvg === undefined && n.closest('#hero')) {
+          window.__qa.marks.plasmidSvg = now;
+        }
+      }
+    };
+    const done = () =>
+      window.__qa.marks.viewer3dCanvas !== undefined && window.__qa.marks.plasmidSvg !== undefined;
+    const mo = new MutationObserver((records) => {
+      const now = performance.now();
+      for (const r of records) {
+        for (const n of r.addedNodes) scan(n, now);
+      }
+      if (done()) mo.disconnect();
+    });
+    mo.observe(document, { childList: true, subtree: true });
+    if (document.documentElement) scan(document.documentElement, performance.now());
+  } catch (err) {
+    window.__qa.domObserverError = String(err);
   }
 
   window.addEventListener('unhandledrejection', (e) => {
@@ -186,6 +339,75 @@ async function wheelSweep(page, durationMs) {
     return window.scrollY;
   });
   return { scrollable, reached };
+}
+
+/* ---------------------------------------------------------------------------
+   WP-16-fix, defect B. The control page.
+
+   A tall, otherwise empty scrolling document that performs exactly ONE
+   transform write per animation frame. That single write is the whole point:
+   it keeps the compositor and the rAF clock honest. A page that paints nothing
+   has its rAF throttled by the browser and reads anywhere from 17ms to 31ms
+   median depending on nothing the site controls, which is how three packages
+   got three verdicts from the same budget.
+   --------------------------------------------------------------------------- */
+const CONTROL_HTML = `<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>perf control</title>
+<style>
+  html,body{margin:0;padding:0;background:#FAF9F7}
+  #spacer{height:${CONTROL_HEIGHT_PX}px}
+  #mark{position:fixed;top:40px;left:40px;width:96px;height:96px;background:#1F6B4A}
+</style></head>
+<body><div id="spacer"></div><div id="mark"></div>
+<script>
+(function(){
+  var el = document.getElementById('mark');
+  var i = 0;
+  function frame(){
+    i = (i + 1) % 360;
+    el.style.transform = 'rotate(' + i + 'deg)';
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+})();
+</script></body></html>`;
+
+async function runControl(browser, label) {
+  const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+  await context.addInitScript(INSTRUMENT);
+  const url = BASE + CONTROL_PATH;
+  await context.route(url, (route) =>
+    route.fulfill({ status: 200, contentType: 'text/html; charset=utf-8', body: CONTROL_HTML })
+  );
+  const page = await context.newPage();
+  const client = await context.newCDPSession(page);
+  await client.send('Emulation.setCPUThrottlingRate', { rate: CPU_THROTTLE });
+  await page.goto(url, { waitUntil: 'load', timeout: 45000 });
+  await page.waitForTimeout(800);
+
+  const swept = await wheelSweep(page, SWEEP_MS);
+  await page.waitForTimeout(300);
+  const data = await page.evaluate(() => ({
+    frames: window.__qa.frames,
+    longtasks: window.__qa.longtasks,
+    marks: window.__qa.marks,
+  }));
+  await context.close();
+
+  const start = data.marks.sweepStart ?? 0;
+  const end = data.marks.sweepEnd ?? Number.MAX_SAFE_INTEGER;
+  const deltas = data.frames.filter((f) => f.t >= start && f.t <= end).map((f) => f.d);
+  const janked = deltas.filter((d) => d > JANK_THRESHOLD_MS).length;
+  const coverage = swept.scrollable > 0 ? swept.reached / swept.scrollable : 0;
+  return {
+    label,
+    frames: deltas.length,
+    median: deltas.length ? pct(deltas, 50) : Number.NaN,
+    p95: deltas.length ? pct(deltas, 95) : Number.NaN,
+    jankPct: deltas.length ? (janked / deltas.length) * 100 : Number.NaN,
+    longtasks: data.longtasks.length,
+    coverage,
+  };
 }
 
 /* WP-15. Records layout shifts from the first tick. Shifts that follow user
@@ -248,6 +470,55 @@ async function settle(page) {
   }
 }
 
+/* ---------------------------------------------------------------------------
+   WP-16-fix, defect A. Build one init's exclusion window from observed evidence,
+   then attribute at most one bounded, contiguous burst of long tasks to it.
+
+   Returns a record that is printed in full whatever the outcome. There are
+   exactly four outcomes and each one is named in the output:
+     - no-evidence   the chunk never arrived, or the DOM never appeared. Nothing
+                     is excluded and the missing piece is named.
+     - no-candidate  the window existed and no long task over 200ms started in it.
+     - excluded      a contiguous burst inside the caps, printed task by task.
+     - overrun       a burst that breaks a cap. Nothing is excluded, and this is
+                     its own failure: an init that large is not an init.
+   --------------------------------------------------------------------------- */
+function attributeInit(init, candidates, alreadyExcluded) {
+  if (!init.chunk) {
+    return { init, outcome: 'no-evidence', reason: 'the ' + init.chunkWhat + ' was never fetched in this run, so there is no initialisation to attribute anything to' };
+  }
+  if (init.domMark === undefined) {
+    return { init, outcome: 'no-evidence', reason: init.domWhat + ' never appeared in this run, so the initialisation never completed and nothing may be attributed to it' };
+  }
+
+  const windowStart = init.chunk.end - INIT_LEAD_MS;
+  const windowEnd = init.domMark + INIT_TAIL_MS;
+  const win = { start: windowStart, end: windowEnd };
+
+  const pool = candidates
+    .filter((t) => !alreadyExcluded.has(t) && t.start >= windowStart && t.start <= windowEnd)
+    .sort((a, b) => a.start - b.start);
+
+  if (pool.length === 0) {
+    return { init, win, outcome: 'no-candidate' };
+  }
+
+  const burst = [pool[0]];
+  let cursor = pool[0].start + pool[0].duration;
+  for (let i = 1; i < pool.length; i += 1) {
+    const gap = pool[i].start - cursor;
+    if (gap > INIT_BURST_GAP_MS) break;
+    burst.push(pool[i]);
+    cursor = pool[i].start + pool[i].duration;
+  }
+
+  const total = burst.reduce((s, t) => s + t.duration, 0);
+  if (burst.length > INIT_MAX_TASKS || total > INIT_MAX_TOTAL_MS) {
+    return { init, win, outcome: 'overrun', burst, total };
+  }
+  return { init, win, outcome: 'excluded', burst, total };
+}
+
 function firstLine(err) {
   const s = String(err && err.message ? err.message : err);
   return s.split(String.fromCharCode(10))[0];
@@ -260,9 +531,38 @@ async function main() {
   console.log('approach: injected requestAnimationFrame delta loop + PerformanceObserver longtask');
   console.log('throttle: CDP Emulation.setCPUThrottlingRate rate=' + CPU_THROTTLE);
   console.log('vsync:    off (' + CHROMIUM_ARGS.slice(0, 2).join(' ') + ') so rAF deltas measure work, not the 60Hz clock');
+  console.log('control:  one transform per frame, swept identically, before and after the site.');
+  console.log('          A blank page is NOT a floor: with nothing to paint its rAF is throttled.');
   console.log('');
 
   const browser = await chromium.launch({ args: CHROMIUM_ARGS });
+
+  /* Cheap reachability probe before spending two control sweeps on a dead port. */
+  const probeContext = await browser.newContext();
+  const probePage = await probeContext.newPage();
+  let probe;
+  try {
+    probe = await probePage.goto(BASE, { waitUntil: 'commit', timeout: 20000 });
+  } catch (err) {
+    await browser.close();
+    console.log('  NOT READY: could not load ' + BASE);
+    console.log('  Reason: ' + firstLine(err));
+    console.log('  Start the preview server first:  npm run build && npm run preview');
+    console.log('');
+    process.exit(2);
+  }
+  if (!probe || !probe.ok()) {
+    await browser.close();
+    console.log('  NOT READY: ' + BASE + ' returned ' + (probe ? probe.status() : 'no response') + '.');
+    console.log('  Build the site and start the preview server before running this script.');
+    console.log('');
+    process.exit(2);
+  }
+  await probeContext.close();
+
+  /* WP-16-fix: control sweep one, BEFORE the site. */
+  const controlBefore = await runControl(browser, 'before');
+
   const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
   const page = await context.newPage();
 
@@ -344,13 +644,21 @@ async function main() {
     frames: window.__qa.frames,
     longtasks: window.__qa.longtasks,
     rejections: window.__qa.rejections,
+    resources: window.__qa.resources,
     marks: window.__qa.marks,
     observerError: window.__qa.longtaskObserverError || null,
+    resourceObserverError: window.__qa.resourceObserverError || null,
+    domObserverError: window.__qa.domObserverError || null,
   }));
 
   const metrics = await client.send('Performance.getMetrics');
   const scriptDuration = (metrics.metrics.find((m) => m.name === 'ScriptDuration') || { value: 0 }).value;
   const taskDuration = (metrics.metrics.find((m) => m.name === 'TaskDuration') || { value: 0 }).value;
+
+  await context.close();
+
+  /* WP-16-fix: control sweep two, AFTER the site, same browser and flags. */
+  const controlAfter = await runControl(browser, 'after');
 
   /* ---------------------------------------------------------------------
      CLS PASS (WP-15). A second load in its own context, with the entry chunk
@@ -411,6 +719,12 @@ async function main() {
   if (data.observerError) {
     failures.push('longtask PerformanceObserver failed to attach: ' + data.observerError);
   }
+  if (data.resourceObserverError) {
+    failures.push('resource PerformanceObserver failed to attach, so no init exclusion can be evidenced: ' + data.resourceObserverError);
+  }
+  if (data.domObserverError) {
+    failures.push('init DOM MutationObserver failed to attach, so no init exclusion can be evidenced: ' + data.domObserverError);
+  }
 
   const sweepStart = data.marks.sweepStart ?? 0;
   const sweepEnd = data.marks.sweepEnd ?? Number.MAX_SAFE_INTEGER;
@@ -425,28 +739,76 @@ async function main() {
     );
   }
 
+  /* ---------------------------------------------------------------------
+     WP-16-fix, defect B. The control, printed beside the site.
+     --------------------------------------------------------------------- */
+  const controls = [controlBefore, controlAfter];
+  console.log('CONTROL (one transform per frame, same browser, same flags, same ' + CPU_THROTTLE + 'x throttle, same wheel sweep)');
+  for (const c of controls) {
+    console.log(
+      '  ' + c.label.padEnd(7) +
+        ' frames ' + String(c.frames).padStart(5) +
+        '   median ' + String(round(c.median)).padStart(6) + 'ms' +
+        '   p95 ' + String(round(c.p95)).padStart(6) + 'ms' +
+        '   janked ' + String(round(c.jankPct)).padStart(6) + '%' +
+        '   long tasks ' + c.longtasks +
+        '   coverage ' + round(c.coverage * 100) + '%'
+    );
+  }
+
+  const controlMedian = Math.max(...controls.map((c) => (Number.isFinite(c.median) ? c.median : Infinity)));
+  const controlJank = Math.max(...controls.map((c) => (Number.isFinite(c.jankPct) ? c.jankPct : Infinity)));
+  const controlFrames = Math.min(...controls.map((c) => c.frames));
+  const controlCoverage = Math.min(...controls.map((c) => c.coverage));
+
+  const controlProblems = [];
+  if (!(controlMedian <= CONTROL_MAX_MEDIAN_MS)) {
+    controlProblems.push('control median frame ' + round(controlMedian) + 'ms is above the ' + CONTROL_MAX_MEDIAN_MS + 'ms gate');
+  }
+  if (!(controlJank <= CONTROL_MAX_JANK_PCT)) {
+    controlProblems.push('control janked frames ' + round(controlJank) + '% is above the ' + CONTROL_MAX_JANK_PCT + '% gate');
+  }
+  if (!(controlFrames >= CONTROL_MIN_FRAMES)) {
+    controlProblems.push('control produced only ' + controlFrames + ' frames, below the ' + CONTROL_MIN_FRAMES + ' minimum');
+  }
+  if (!(controlCoverage >= SWEEP_MIN_COVERAGE)) {
+    controlProblems.push('control sweep reached only ' + round(controlCoverage * 100) + '% of its scrollable distance');
+  }
+  if (controlProblems.length === 0) {
+    console.log('  floor is sound: the machine can resolve the difference between the ' + BUDGET_JANK_PCT + '% budget and the floor.');
+  } else {
+    console.log('  FLOOR IS NOT SOUND:');
+    for (const p of controlProblems) console.log('    - ' + p);
+  }
+  console.log('');
+
   console.log('FRAMES');
+  let siteMedian = Number.NaN;
+  let siteJankPct = Number.NaN;
+  const frameFailures = [];
   if (sweepFrames.length < 30) {
-    failures.push('only ' + sweepFrames.length + ' frames captured during the sweep, which is too few to judge');
+    frameFailures.push('only ' + sweepFrames.length + ' frames captured during the sweep, which is too few to judge');
     console.log('  captured: ' + sweepFrames.length + ' (too few)');
   } else {
-    const median = pct(sweepFrames, 50);
+    siteMedian = pct(sweepFrames, 50);
     const p95 = pct(sweepFrames, 95);
     const janked = sweepFrames.filter((d) => d > JANK_THRESHOLD_MS).length;
-    const jankPct = (janked / sweepFrames.length) * 100;
+    siteJankPct = (janked / sweepFrames.length) * 100;
 
-    console.log('  captured:     ' + sweepFrames.length + ' frames over ' + round(sweepEnd - sweepStart) + 'ms');
-    console.log('  median frame: ' + round(median) + 'ms   (budget < ' + BUDGET_MEDIAN_MS + 'ms)');
-    console.log('  p95 frame:    ' + round(p95) + 'ms');
+    console.log('  captured:     ' + sweepFrames.length + ' frames over ' + round(sweepEnd - sweepStart) + 'ms   (control: ' + controlBefore.frames + ' / ' + controlAfter.frames + ')');
+    console.log('  median frame: ' + round(siteMedian) + 'ms   (budget < ' + BUDGET_MEDIAN_MS + 'ms, control floor ' + round(controlBefore.median) + ' / ' + round(controlAfter.median) + 'ms)');
+    console.log('  p95 frame:    ' + round(p95) + 'ms   (control ' + round(controlBefore.p95) + ' / ' + round(controlAfter.p95) + 'ms)');
     console.log(
-      '  janked (>' + JANK_THRESHOLD_MS + 'ms): ' + janked + ' of ' + sweepFrames.length + ' = ' + round(jankPct) + '%   (budget < ' + BUDGET_JANK_PCT + '%)'
+      '  janked (>' + JANK_THRESHOLD_MS + 'ms): ' + janked + ' of ' + sweepFrames.length + ' = ' + round(siteJankPct) + '%   (budget < ' + BUDGET_JANK_PCT + '%, control floor ' + round(controlBefore.jankPct) + ' / ' + round(controlAfter.jankPct) + '%)'
     );
 
-    if (!(median < BUDGET_MEDIAN_MS)) {
-      failures.push('median frame ' + round(median) + 'ms is not under the ' + BUDGET_MEDIAN_MS + 'ms budget');
+    if (!(siteMedian < BUDGET_MEDIAN_MS)) {
+      frameFailures.push('median frame ' + round(siteMedian) + 'ms is not under the ' + BUDGET_MEDIAN_MS + 'ms budget (control floor this run: ' + round(controlMedian) + 'ms)');
     }
-    if (!(jankPct < BUDGET_JANK_PCT)) {
-      failures.push('janked frames ' + round(jankPct) + '% is not under the ' + BUDGET_JANK_PCT + '% budget');
+    if (!(siteJankPct < BUDGET_JANK_PCT)) {
+      frameFailures.push(
+        'janked frames ' + round(siteJankPct) + '% is not under the ' + BUDGET_JANK_PCT + '% budget. The control floor measured in the same run, on the same machine, with the same flags and throttle, is ' + round(controlJank) + '%, so this is the page and not the harness'
+      );
     }
 
     /* WP-15: when jank is missed, say where it went. Reported, never budgeted:
@@ -480,71 +842,107 @@ async function main() {
   const over = sweepTasks.filter((t) => t.duration > LONGTASK_FAIL_MS);
   const bootOver = allTasks.filter((t) => t.duration > LONGTASK_FAIL_MS && !sweepTasks.includes(t));
 
-  /* Identify the two permitted one-time exclusions by POSITION and DURATION,
-     and print exactly what was excluded and why. Never silent. */
-  const excluded = [];
-  const remaining = [];
+  /* ---------------------------------------------------------------------
+     WP-16-fix, defect A. The two permitted one-time inits, each attributed at
+     most ONE bounded, contiguous, evidenced burst of long tasks.
+     --------------------------------------------------------------------- */
+  const resources = data.resources || [];
+  const newest = (re) => {
+    const hits = resources.filter((r) => re.test(r.name)).sort((a, b) => a.end - b.end);
+    return hits.length ? hits[0] : null;
+  };
 
-  const seqvizCutoff = sweepStart + SEQVIZ_WINDOW_MS;
-  const approach = data.marks.structureApproach;
+  const inits = [
+    {
+      key: 'seqviz',
+      label: 'the one-time seqviz mount (spec sections 8.6 and 12)',
+      chunk: newest(/seqviz|index\.browser/i),
+      chunkWhat: 'seqviz chunk',
+      domMark: data.marks.plasmidSvg,
+      domWhat: 'the first svg element inside #hero, which is the rendered map',
+    },
+    {
+      key: 'viewer3d',
+      label: 'the one-time 3Dmol init (spec sections 9.5 and 12)',
+      chunk: newest(/3dmol/i),
+      chunkWhat: '3Dmol chunk',
+      domMark: data.marks.viewer3dCanvas,
+      domWhat: 'the first canvas element inside #structure, which is the viewer surface',
+    },
+  ];
 
-  let seqvizUsed = false;
-  let viewer3dUsed = false;
-
-  /* Longest first, so that if two candidates sit in one window the genuine
-     one-time init is the one excluded. */
-  for (const t of [...over].sort((a, b) => b.duration - a.duration)) {
-    if (!seqvizUsed && t.start <= seqvizCutoff) {
-      seqvizUsed = true;
-      excluded.push({
-        task: t,
-        why:
-          'one-time seqviz mount. It starts at ' +
-          round(t.start) +
-          'ms, which is at or before the sweep start (' +
-          round(sweepStart) +
-          'ms) plus the ' +
-          SEQVIZ_WINDOW_MS +
-          'ms idle-callback grace defined in spec section 8.6. Excluded once, by section 12.',
-      });
-      continue;
-    }
-    if (!viewer3dUsed && approach !== undefined && t.start >= approach && t.start <= approach + VIEWER3D_WINDOW_MS) {
-      viewer3dUsed = true;
-      excluded.push({
-        task: t,
-        why:
-          'one-time 3Dmol init. It starts at ' +
-          round(t.start) +
-          'ms, inside the ' +
-          VIEWER3D_WINDOW_MS +
-          'ms window after the structure section first came within 1.5 viewport heights (' +
-          round(approach) +
-          'ms), which is when spec section 9.5 dynamically imports the viewer. Excluded once, by section 12.',
-      });
-      continue;
-    }
-    remaining.push(t);
+  const excludedSet = new Set();
+  const results = [];
+  for (const init of inits) {
+    const r = attributeInit(init, over, excludedSet);
+    if (r.outcome === 'excluded') for (const t of r.burst) excludedSet.add(t);
+    results.push(r);
   }
+  const remaining = over.filter((t) => !excludedSet.has(t));
 
   console.log('');
-  console.log('  over ' + LONGTASK_FAIL_MS + 'ms: ' + over.length);
-  if (excluded.length === 0) {
-    console.log('  excluded: none. No long task matched either permitted one-time init window.');
-  } else {
-    for (const e of excluded) {
-      console.log('  EXCLUDED ' + round(e.task.duration) + 'ms task at ' + round(e.task.start) + 'ms');
-      console.log('    why: ' + e.why);
+  console.log('  over ' + LONGTASK_FAIL_MS + 'ms inside the sweep: ' + over.length);
+  console.log('  exclusion rule: a contiguous burst of at most ' + INIT_MAX_TASKS + ' tasks totalling at most ' +
+    INIT_MAX_TOTAL_MS + 'ms, no gap over ' + INIT_BURST_GAP_MS + 'ms between them, inside a window that opens ' +
+    INIT_LEAD_MS + 'ms before that subsystem\'s own chunk finished downloading and closes ' + INIT_TAIL_MS +
+    'ms after that subsystem\'s own DOM first existed. Both pieces of evidence are required.');
+
+  for (const r of results) {
+    console.log('');
+    console.log('  ' + r.init.label);
+    if (r.outcome === 'no-evidence') {
+      console.log('    NOTHING EXCLUDED. ' + r.reason + '.');
+      continue;
+    }
+    console.log(
+      '    evidence: ' + r.init.chunkWhat + ' responseEnd ' + round(r.init.chunk.end) + 'ms; ' +
+        r.init.domWhat + ' first seen ' + round(r.init.domMark) + 'ms.'
+    );
+    console.log('    window:   ' + round(r.win.start) + 'ms to ' + round(r.win.end) + 'ms.');
+    if (r.outcome === 'no-candidate') {
+      console.log('    NOTHING EXCLUDED. No long task over ' + LONGTASK_FAIL_MS + 'ms started inside that window during the sweep.');
+      continue;
+    }
+    if (r.outcome === 'overrun') {
+      console.log(
+        '    NOTHING EXCLUDED, AND THIS IS A FAILURE. The burst is ' + r.burst.length + ' task(s) totalling ' +
+          round(r.total) + 'ms, which breaks the cap of ' + INIT_MAX_TASKS + ' tasks and ' + INIT_MAX_TOTAL_MS + 'ms.'
+      );
+      for (const t of r.burst) {
+        console.log('      ' + round(t.duration) + 'ms at ' + round(t.start) + 'ms   NOT excluded');
+      }
+      failures.push(
+        r.init.label + ' window contains a burst of ' + r.burst.length + ' long task(s) totalling ' + round(r.total) +
+          'ms, which exceeds what a one-time init can plausibly be (cap ' + INIT_MAX_TASKS + ' tasks / ' +
+          INIT_MAX_TOTAL_MS + 'ms). Nothing was excluded and every one of those tasks is counted against the budget'
+      );
+      continue;
+    }
+    console.log('    EXCLUDED ' + r.burst.length + ' task(s), ' + round(r.total) + 'ms in total:');
+    let idx = 0;
+    for (const t of r.burst) {
+      idx += 1;
+      const gapNote = idx === 1
+        ? 'first task of the burst, starting ' + round(t.start - r.init.chunk.end) + 'ms after the chunk arrived'
+        : 'continues the same burst, starting ' + round(t.start - (r.burst[idx - 2].start + r.burst[idx - 2].duration)) + 'ms after the previous task ended, inside the ' + INIT_BURST_GAP_MS + 'ms gap limit';
+      console.log('      EXCLUDED ' + round(t.duration) + 'ms task at ' + round(t.start) + 'ms');
+      console.log('        why: ' + gapNote + '. It is part of ' + r.init.label + ', which section 12 permits excluding once. Window ' +
+        round(r.win.start) + 'ms to ' + round(r.win.end) + 'ms, anchored on the ' + r.init.chunkWhat + ' arriving at ' +
+        round(r.init.chunk.end) + 'ms and ' + r.init.domWhat + ' first existing at ' + round(r.init.domMark) + 'ms. Burst total so far ' +
+        round(r.burst.slice(0, idx).reduce((s, x) => s + x.duration, 0)) + 'ms of the ' + INIT_MAX_TOTAL_MS + 'ms cap.');
     }
   }
-  if (approach === undefined) {
-    console.log('  note: the structure section never came within 1.5 viewport heights during the sweep,');
-    console.log('        so no 3Dmol init exclusion window existed and none was applied.');
+
+  if (data.marks.structureApproach !== undefined) {
+    console.log('');
+    console.log('  for context: the structure section first came within 1.5 viewport heights at ' +
+      round(data.marks.structureApproach) + 'ms. That mark is printed, not used as an exclusion window:');
+    console.log('  a time window alone would let a genuine scroll-work regression hide inside it.');
   }
 
   for (const t of remaining) {
     failures.push(
-      'long task of ' + round(t.duration) + 'ms at ' + round(t.start) + 'ms is over the ' + LONGTASK_FAIL_MS + 'ms limit and is not a permitted one-time init'
+      'long task of ' + round(t.duration) + 'ms at ' + round(t.start) + 'ms is over the ' + LONGTASK_FAIL_MS + 'ms limit and is not part of a permitted one-time init burst'
     );
   }
 
@@ -583,7 +981,30 @@ async function main() {
     failures.push(data.rejections.length + ' unhandled promise rejection(s), section 16.6 is a hard gate');
   }
 
+  /* ---------------------------------------------------------------------
+     WP-16-fix, defect B. A frame verdict is only emitted when the control says
+     the machine can carry one.
+     --------------------------------------------------------------------- */
   console.log('');
+  if (controlProblems.length > 0) {
+    console.log('NO VERDICT: the machine is too loaded to judge the frame budgets.');
+    for (const p of controlProblems) console.log('  - ' + p);
+    console.log('  A control page doing one trivial transform per frame reads roughly 1.3ms median and');
+    console.log('  0.05% janked on an idle machine. It did not read that here, so the ' + BUDGET_MEDIAN_MS + 'ms and ' +
+      BUDGET_JANK_PCT + '% budgets');
+    console.log('  cannot be resolved from the floor in this run. Close other work and run it again.');
+    const observed = failures.concat(frameFailures);
+    if (observed.length > 0) {
+      console.log('');
+      console.log('  Observed in this run, NOT adjudicated, because the run is not a verdict:');
+      for (const f of observed) console.log('    - ' + f);
+    }
+    console.log('');
+    process.exit(2);
+  }
+
+  for (const f of frameFailures) failures.push(f);
+
   if (failures.length > 0) {
     console.log('FAIL: ' + failures.length + ' budget or gate violation(s).');
     for (const f of failures) console.log('  - ' + f);

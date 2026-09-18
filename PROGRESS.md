@@ -41,6 +41,11 @@ WP-15 CLAIMED by WP-15 at 2026-09-18T02:53:49Z
 WP-07-fix CLAIMED at 2026-09-18T04:41:13Z
 WP-09a-fix CLAIMED at 2026-09-18T04:41:21Z
 
+WP-17 CLAIMED by WP-17 at 2026-09-18T12:05:00Z
+WP-06-fix CLAIMED at 2026-09-18T16:56:03Z
+WP-12-fix CLAIMED at 2026-09-18T16:57:31Z
+WP-16-fix CLAIMED at 2026-09-18T16:59:03.185Z
+
 ## Done
 (none yet)
 WP-01 DONE by WP-01 at 2026-09-18T01:22:17Z
@@ -84,6 +89,8 @@ WP-15 DONE by WP-15 at 2026-09-18T03:43:42Z
 WP-09c DONE by WP-09c at 2026-09-18T04:40:00Z (reopened for the WP-15 finding: fx-plasmid--mini is now in the markup, the map box measures 320px on its first frame, #how holds one height across every frame, and the scroll position no longer jumps at mount)
 WP-09a-fix DONE at 2026-09-18T05:16:04Z
 WP-07-fix DONE at 2026-09-18T05:55:00Z
+
+WP-17 DONE by WP-17 at 2026-09-18T13:05:00Z
 
 ## Blocked
 (none yet)
@@ -166,4 +173,12 @@ WP-09g -> WP-10: src/sections/traction.ts exports mount only. Section 07 has not
 WP-14 -> WP-09a (src/sections/hero.ts and its sections.css block): MEASURED LIGHTHOUSE FINDING. The hero status line LIVE / OPEN SOURCE / MIT LICENSED is --ink-faint on --paper, which measures 4.93:1 settled and passes AA, but spec 7.1 fades it in at t=2.40s and Lighthouse samples that frame. The same node comes back at 4.31:1, 4.02:1 and 2.73:1 across three default desktop runs, three different foregrounds for one element, which is the diagnosis: it is captured mid-fade. It is the ONLY failing node and it drops Lighthouse Accessibility from 100 to 96 against the spec section 12 target of 98. Two fixes, both inside WP-09a own files and neither touching the token table: (1) reveal the status line with the transform only and no opacity transition, so it never renders at a partial alpha while still arriving at t=2.40s, or (2) start its opacity transition at about 0.92 rather than 0, which is where 4.93:1 crosses 4.5:1, keeping a fade with every sampled frame above AA. Option 1 is cleaner. Full numbers in progress/WP-14.md section 12.
 - Orchestrator verified WP-09c's generalisation does not affect other sections. The distinction that matters: a class added SYNCHRONOUSLY during mount costs one layout pass and is harmless, while a class added ASYNCHRONOUSLY after first paint reflows. fx-plasmid--mini was added inside mountPlasmid after afterFirstPaint(), which is why it reflowed. sec-outputs__item--wide and every .sec-* root class are added synchronously inside mount, and WP-11 separately measured the three .sec-* roots carrying box properties at 0.0000. No other latent instance exists.
 - The reduced-motion whole-page CLS is CLOSED as a harness artifact, on WP-15's evidence rather than assumption. Set before navigation, which is how a real visitor arrives, it measures 0.0000 across 14 runs on a control-validated harness, 8 of 8 on an independent stepped harness, and 0 in 3 of 3 Lighthouse runs. It reproduces at 1.0000 only when motion is switched off AFTER the page has laid out with pins, which removes 3300 to 4500px of pin spacer under a parked viewport. A real visitor's preference is true before the document loads, so those spacers never exist.
-WP-17 CLAIMED by WP-17 at 2026-09-18T12:05:00Z
+- Orchestrator A/B of the three candidate paint remedies for the hero map, at 375x812, 6x CPU throttle, wheel-driven 8s sweep, identical conditions, run back to back. Result: NONE of them helps and two make it worse.
+    baseline                     frames=687  median=6.3ms   jank=20.52%
+    .fx-plasmid svg contain:paint frames=646 median=8.6ms   jank=19.35%
+    .fx-plasmid svg will-change   frames=560 median=9.0ms   jank=28.39%
+    container content-visibility  frames=486 median=12.9ms  jank=34.16%
+  The contain:paint difference is inside run to run noise, and the other two are clearly worse. WP-07-fix's diagnosis that paint dominates the mobile sweep stands, but its three candidate remedies are now MEASURED AND REJECTED. No change was applied, because applying one that does not help would be unjustified. Also note contain:paint on the .fx-plasmid CONTAINER would clip the tooltip, which is absolutely positioned and translated above its box, so that variant was tested on the svg only.
+- VERDICT on the janked-frame budget: MISSED and reported as missed. Measured 21.9% on the harness and 20.5% in the A/B, against a budget of under 2%, with the harness's own one-transform-per-frame control reading 0.28% in the same run on the same machine. The control proves this is the page and not the instrument. The cause is paint of the large hero map SVG during scroll. No threshold was relaxed and no exclusion was widened to hide it.
+- Debug global removed before ship. src/main.ts no longer attaches window.__WP10 behind st-debug, and dist greps clean for both strings. The accessibility gate's reduced-motion pin assertion is therefore inferential (pin-spacer scan) rather than exact from this build onward, which progress/WP-14.md records.
+- Final rebrand and privacy grep over dist: PMR 0, PlasmidAI 0, plasmidai 0, and zero hits for every personal name from the spec. Two honest exceptions, both known and neither a defect: (1) the string markandeyay appears once, inside the GitHub repository URL that override A6 Q6 mandates, so the rebrand rule and the link requirement genuinely conflict there and the link requirement wins as the owner specified it; (2) one email address, jack@greensock.com, exists inside the bundled GSAP library's own source. It is third-party library metadata, is never rendered, and is not the site's contact address, which remains server-side in Apps Script only.

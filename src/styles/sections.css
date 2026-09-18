@@ -149,6 +149,30 @@
     animation: none;
   }
 }
+
+/* Determinate progress rule for the submit. A hairline track in the site's own
+   structural language, not a widget. It reserves its height at all times so
+   nothing shifts when a submit starts, and it is aria-hidden: the status line
+   above it is the announced channel. The fill transition and its duration are
+   set in script, because only the client knows the submit deadline. */
+.sec-contact__progress {
+  height: 2px;
+  margin-block-start: var(--sp-4);
+  overflow: hidden;
+  background: transparent;
+}
+
+.sec-contact__progress-bar {
+  display: block;
+  height: 100%;
+  transform: scaleX(0);
+  transform-origin: left center;
+  background: var(--ink);
+}
+
+.sec-contact__progress.is-running {
+  background: var(--rule);
+}
 /* ==== /WP-12 ==== */
 
 /* ==== WP-08: Text FX ==== */

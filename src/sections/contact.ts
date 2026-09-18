@@ -161,7 +161,16 @@ function buildForm(): HTMLFormElement {
   status.setAttribute('aria-live', 'polite');
 
   actions.append(button, status);
-  form.append(row, orgField, subjectField, messageField, honeypot, actions);
+
+  // A determinate rule that fills over the submit deadline, so a slow relay
+  // reads as a bounded wait rather than a hang. Decorative to assistive
+  // technology on purpose: the aria-live status line is the announced channel,
+  // and this element carries no string of its own.
+  const progress = el('div', 'sec-contact__progress');
+  progress.setAttribute('aria-hidden', 'true');
+  progress.appendChild(el('span', 'sec-contact__progress-bar'));
+
+  form.append(row, orgField, subjectField, messageField, honeypot, actions, progress);
   return form;
 }
 

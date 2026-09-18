@@ -99,14 +99,13 @@ function boot(): void {
   });
 
   /*
-   * Debug handle for the WP-10 verification harness. Opt-in only: it attaches
-   * nothing unless the URL carries `st-debug`, so a normal visitor's `window`
-   * is untouched. It is present in the shipped bundle, and progress/WP-10.md
-   * says so plainly.
+   * A debug handle used to sit here, exposing gsap and ScrollTrigger behind an
+   * `st-debug` query string so the accessibility gate could read the active
+   * trigger count exactly. Every gate that needed it has run, so it has been
+   * removed before shipping and nothing is attached to `window`. The
+   * accessibility gate falls back to its pin-spacer scan, which is inferential
+   * rather than exact; progress/WP-14.md records which method it used.
    */
-  if (location.search.includes('st-debug')) {
-    (window as unknown as Record<string, unknown>).__WP10 = { gsap, ScrollTrigger };
-  }
   /* ==== /WP-10 ==== */
 
   /* ==== WP-15: perf instrumentation. Only WP-15 writes here. ==== */
