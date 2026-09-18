@@ -121,6 +121,42 @@ const ZOOM_INTERVAL_IDLE_MS = 60;
 /** Camera moves smaller than this are not worth a render. */
 const ZOOM_EPSILON = 0.012;
 
+/**
+ * ADAPTIVE RENDER RESOLUTION.
+ *
+ * A 3Dmol render is a WebGL draw followed by an OffscreenCanvas
+ * transferToImageBitmap onto the visible canvas, and that transfer blocks the
+ * main thread in proportion to the number of pixels. Measured on the built page
+ * at 6x CPU throttle: one render of the 898x673 stage costs roughly 330ms, which
+ * is a spec section 12 long-task failure on its own, before any question of how
+ * often it happens. Rendering less often cannot fix a single render that is
+ * already over 200ms. Rendering fewer pixels can.
+ *
+ * So the viewer renders at the resolution the device turns out to afford. It
+ * starts at full resolution and steps the backing store down only after it has
+ * measured renders that miss the budget below. The canvas is then stretched by
+ * CSS to fill the same box, so the layout, the aspect and the reserved box are
+ * untouched. On any machine where a render is cheap, which is every real
+ * desktop this viewer loads on (below 720px it is never loaded at all), the
+ * ladder never leaves step 0 and nothing about the image changes.
+ */
+const RENDER_SCALES = [1, 0.68, 0.5, 0.36];
+
+/** A render that costs more than this is not affordable at the current size. */
+const RENDER_BUDGET_MS = 80;
+
+/** One slow render can be a garbage collection. Two in a row is the device. */
+const SLOW_RENDERS_BEFORE_STEP = 2;
+
+/**
+ * Pacing. After a render that cost C, the next one waits C times this ratio, so
+ * the viewer can never take more than a bounded share of the main thread
+ * whatever the device. At 5ms a render, which is a real desktop, the wait is
+ * 10ms and nothing is throttled at all.
+ */
+const RENDER_PACE_RATIO = 2;
+const RENDER_PACE_MAX_MS = 400;
+
 /** Spec section 7.6: manual rotation pauses auto-rotation for 4s after release. */
 const RESUME_DELAY_MS = 4000;
 
@@ -154,9 +190,26 @@ type GLViewer = {
   rotate(angle: number, axis?: string): unknown;
   render(): unknown;
   resize(): unknown;
+  setWidth(w: number): unknown;
+  setHeight(h: number): unknown;
   clear?(): unknown;
   getView?(): number[];
   setView?(view: number[]): unknown;
+};
+
+/**
+ * 3Dmol attaches a ResizeObserver and an IntersectionObserver of its own to the
+ * element it is given, and both call its resize(), which re-derives the buffer
+ * from the container AND renders. This module already observes intersection and
+ * resize itself, so those two are duplicates: every time the section scrolls
+ * into view they spend a full-resolution render that nothing asked for, which is
+ * the single largest long task left during a scroll sweep. They are disconnected
+ * and this module drives the same two events. Guarded, because they are
+ * internals: if a future 3Dmol stops creating them, nothing here changes.
+ */
+type Watchers = {
+  divwatcher?: { disconnect?: () => void };
+  intwatcher?: { disconnect?: () => void };
 };
 
 type Mol3dApi = {
@@ -259,7 +312,100 @@ export async function mountViewer3d(el: HTMLElement): Promise<Viewer3dHandle | n
   let lastRotateAt = 0;
   /** performance.now() of the last scroll frame with real movement. */
   let lastScrollAt = 0;
+  /** Index into RENDER_SCALES. Steps down only, never up. */
+  let scaleIndex = 0;
+  /** Consecutive renders that missed RENDER_BUDGET_MS. */
+  let slowRenders = 0;
+  /** Cost of the last render, and when it finished, for pacing. */
+  let lastRenderCost = 0;
+  let lastRenderEnd = 0;
   let unsubscribeScroll: (() => void) | null = null;
+
+  /**
+   * 3Dmol sets the canvas inline width and height in CSS pixels to match the
+   * backing store, so stepping the backing store down would shrink the picture.
+   * The canvas is put back to filling its box after every size change.
+   */
+  function fillCanvas(): void {
+    const canvas = stage.querySelector('canvas');
+    if (!canvas) return;
+    canvas.style.width = '100%';
+    canvas.style.height = '100%';
+  }
+
+  /**
+   * setWidth and setHeight set the viewer's dimensions independently of the
+   * container, which is exactly what is wanted here: the container keeps its
+   * reserved box and the render buffer gets smaller. Neither call renders, so
+   * this is free until the next render happens anyway.
+   */
+  function applyRenderScale(): void {
+    if (!viewer) return;
+    const scale = RENDER_SCALES[scaleIndex];
+    const w = Math.max(1, Math.round(stage.clientWidth * scale));
+    const h = Math.max(1, Math.round(stage.clientHeight * scale));
+    viewer.setWidth(w);
+    viewer.setHeight(h);
+    fillCanvas();
+  }
+
+  /**
+   * 3Dmol installs its own ResizeObserver and IntersectionObserver on the
+   * element it was given, and both call its resize(), which re-derives the
+   * buffer size from the container and undoes the step below. So the scale is
+   * re-asserted before each render rather than set once. This is two property
+   * reads when the ladder is at full resolution, which is every real desktop.
+   */
+  function ensureRenderScale(): void {
+    if (scaleIndex === 0 || !viewer) return;
+    const canvas = stage.querySelector('canvas');
+    if (!canvas) return;
+    const scale = RENDER_SCALES[scaleIndex];
+    const ratio = window.devicePixelRatio || 1;
+    const want = Math.max(1, Math.round(stage.clientWidth * scale)) * ratio;
+    if (canvas.width !== want) applyRenderScale();
+  }
+
+  /**
+   * Record what a render actually cost and, if the device cannot afford the
+   * current size, step down far enough in one move. Cost tracks pixel count, so
+   * the estimate for a candidate scale is the measured cost times the ratio of
+   * the two areas.
+   */
+  function noteRenderCost(cost: number): void {
+    lastRenderCost = cost;
+    lastRenderEnd = performance.now();
+    if (cost <= RENDER_BUDGET_MS) {
+      slowRenders = 0;
+      return;
+    }
+    slowRenders += 1;
+    if (slowRenders < SLOW_RENDERS_BEFORE_STEP) return;
+    const current = RENDER_SCALES[scaleIndex];
+    let next = scaleIndex;
+    for (let i = scaleIndex + 1; i < RENDER_SCALES.length; i += 1) {
+      next = i;
+      const area = (RENDER_SCALES[i] * RENDER_SCALES[i]) / (current * current);
+      if (cost * area <= RENDER_BUDGET_MS) break;
+    }
+    if (next === scaleIndex) return;
+    scaleIndex = next;
+    slowRenders = 0;
+    applyRenderScale();
+  }
+
+  /** Every 3Dmol render in this module is timed, so the ladder has data. */
+  function timed(render: () => void): void {
+    const before = performance.now();
+    render();
+    noteRenderCost(performance.now() - before);
+  }
+
+  /** True while the main thread still owes time for the previous render. */
+  function pacedOut(now: number): boolean {
+    const wait = Math.min(RENDER_PACE_MAX_MS, lastRenderCost * RENDER_PACE_RATIO);
+    return now - lastRenderEnd < wait;
+  }
 
   /**
    * Every render goes through here, so there is never more than one per frame.
@@ -278,7 +424,9 @@ export async function mountViewer3d(el: HTMLElement): Promise<Viewer3dHandle | n
     }
     appliedFactor = target;
     zoomDirty = false;
-    viewer.zoom(relative); // renders
+    const v = viewer;
+    ensureRenderScale();
+    timed(() => v.zoom(relative)); // renders
   }
 
   function isScrolling(now: number): boolean {
@@ -300,6 +448,9 @@ export async function mountViewer3d(el: HTMLElement): Promise<Viewer3dHandle | n
     if (!viewer) return;
 
     const now = performance.now();
+    // The previous render's own cost paces the next one, so a slow device
+    // cannot spend the whole main thread in the viewer.
+    if (pacedOut(now)) return;
     const scrolling = isScrolling(now);
 
     // The scrub owns the camera while the page is moving, so the zoom render
@@ -337,7 +488,9 @@ export async function mountViewer3d(el: HTMLElement): Promise<Viewer3dHandle | n
     const angle = Math.min(MAX_STEP_DEG, (elapsed / 1000) * DEG_PER_SECOND);
     lastRotateAt = now;
     lastRenderAt = now;
-    viewer.rotate(angle, 'y'); // renders
+    const v = viewer;
+    ensureRenderScale();
+    timed(() => v.rotate(angle, 'y')); // renders
   }
 
   function startLoop(): void {
@@ -381,7 +534,9 @@ export async function mountViewer3d(el: HTMLElement): Promise<Viewer3dHandle | n
     if (resizeRaf) return;
     resizeRaf = window.requestAnimationFrame(() => {
       resizeRaf = 0;
-      if (viewer && !disposed) viewer.resize();
+      if (!viewer || disposed) return;
+      viewer.resize(); // renders, and resets the size from the container
+      applyRenderScale();
     });
   }
 
@@ -404,8 +559,14 @@ export async function mountViewer3d(el: HTMLElement): Promise<Viewer3dHandle | n
       (entries) => {
         for (let i = 0; i < entries.length; i += 1) {
           onScreen = entries[i].isIntersecting;
-          if (onScreen) startLoop();
-          else stopLoop();
+          if (onScreen) {
+            // 3Dmol's own visibility handler is disconnected above, so the
+            // buffer is re-asserted here instead. This does not render.
+            ensureRenderScale();
+            startLoop();
+          } else {
+            stopLoop();
+          }
         }
       },
       { rootMargin: '0px', threshold: 0 },
@@ -475,11 +636,23 @@ export async function mountViewer3d(el: HTMLElement): Promise<Viewer3dHandle | n
         },
       );
       v.zoomTo();
+      const firstRenderAt = performance.now();
       v.render(); // nothing appears without this
+      const firstRenderCost = performance.now() - firstRenderAt;
       // Default lighting. No coloured lights are added.
 
       viewer = v;
-      (window as unknown as Record<string, unknown>).__wp07probe = v; // TEMP probe, removed before done
+      const watchers = v as unknown as Watchers;
+      if (watchers.divwatcher && typeof watchers.divwatcher.disconnect === 'function') {
+        watchers.divwatcher.disconnect();
+      }
+      if (watchers.intwatcher && typeof watchers.intwatcher.disconnect === 'function') {
+        watchers.intwatcher.disconnect();
+      }
+      fillCanvas();
+      // The one-time init render is the first evidence of what this device can
+      // afford. It counts as one slow render, so a second slow one steps down.
+      noteRenderCost(firstRenderCost);
 
       applyZoom();
       attach();
