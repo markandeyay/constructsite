@@ -4,7 +4,7 @@ import { defineConfig, type Plugin } from 'vite';
  * THE ONLY PLACE THE SITE DOMAIN IS DEFINED.
  * Change this one line after the Vercel deploy and every absolute URL follows.
  */
-export const SITE_ORIGIN = 'https://constructsite.vercel.app';
+export const SITE_ORIGIN = 'https://constructsite-nine.vercel.app';
 
 /** Replaces every literal `%SITE_ORIGIN%` token in index.html with SITE_ORIGIN. */
 function siteOriginPlugin(): Plugin {
