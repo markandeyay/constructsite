@@ -37,6 +37,10 @@ WP-14 CLAIMED by WP-14 at 2026-09-18T02:53:04Z
 
 WP-15 CLAIMED by WP-15 at 2026-09-18T02:53:49Z
 
+
+WP-07-fix CLAIMED at 2026-09-18T04:41:13Z
+WP-09a-fix CLAIMED at 2026-09-18T04:41:21Z
+
 ## Done
 (none yet)
 WP-01 DONE by WP-01 at 2026-09-18T01:22:17Z
@@ -78,6 +82,7 @@ WP-14 DONE by WP-14 at 2026-09-18T03:37:07Z
 WP-15 DONE by WP-15 at 2026-09-18T03:43:42Z
 
 WP-09c DONE by WP-09c at 2026-09-18T04:40:00Z (reopened for the WP-15 finding: fx-plasmid--mini is now in the markup, the map box measures 320px on its first frame, #how holds one height across every frame, and the scroll position no longer jumps at mount)
+WP-09a-fix DONE at 2026-09-18T05:16:04Z
 
 ## Blocked
 (none yet)
