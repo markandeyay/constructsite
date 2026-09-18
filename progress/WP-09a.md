@@ -109,8 +109,9 @@ of its own: it has nothing to settle.
 
 **6. `initScrub` creates nothing.** The scroll-out motion in spec 7.1 is the
 section 6.5 parallax, which is entirely declarative: `data-depth="far"` on the
-H1 and on the right column, with `core/motion.ts` owning the transform, the
-clamp and the cached measurement. A trigger here would mean two writers on one
+two columns, with `core/motion.ts` owning the transform, the clamp and the
+cached measurement. See the reopened-fix section at the end of this file for
+why the attribute sits on the column rather than on the `<h1>`. A trigger here would mean two writers on one
 transform. The export stays because C1 defines it and WP-10 calls it in
 document order.
 
@@ -142,7 +143,9 @@ correct across a resize.
 
 Playwright with Chromium against a real `vite preview` build of `dist/`, at
 375x812, 900x1200 and 1440x900, each with and without
-`prefers-reduced-motion: reduce`. 150 checks, 0 failures.
+`prefers-reduced-motion: reduce`. 168 checks, 0 failures. The suite now
+includes a pairwise bounding-box intersection assertion across eleven scroll
+positions per viewport.
 
 ```
 --- 375px ---
@@ -152,8 +155,10 @@ Playwright with Chromium against a real `vite preview` build of `dist/`, at
   [PASS] h1 id is hero-title  hero-title
   [PASS] h1 accessible name is both copy lines, once  Describe what you want to build. Get a design you can order.
   [PASS] h1 renders both copy lines, once  Describe what you want to build. Get a design you can order.
-  [PASS] h1 data-depth=far  far
+  [PASS] left column data-depth=far  far
   [PASS] right column data-depth=far  far
+  [PASS] h1 rides the far layer  closest far ancestor found
+  [PASS] h1 carries NO data-depth of its own (no nested transform)  null
   [PASS] kicker string from copy.ts  DESIGN AUTOMATION FOR BIOLOGY
   [PASS] lede string from copy.ts  Construct turns plain-English intent into ...
   [PASS] status string from copy.ts  LIVE · OPEN SOURCE · MIT LICENSED
@@ -166,8 +171,9 @@ Playwright with Chromium against a real `vite preview` build of `dist/`, at
   [PASS] measured CLS is exactly 0.00  CLS=0.0000
   [PASS] no-motion class matches emulation  no-motion=false
   [PASS] one column below 901px  335px
-  [PASS] visual sits BELOW the copy  copyBottom=768 visualTop=816
+  [PASS] visual sits BELOW the copy  copyBottom=707 visualTop=755
   [PASS] map is 300px square below 901px  300px
+  [PASS] no two hero element boxes intersect, at any scroll position  11 scroll positions clean
   [PASS] after a full scroll sweep, NO element in the hero is below opacity 1  0 hidden
   [PASS] zero console errors  0
   [PASS] zero unhandled rejections and page errors  0
@@ -179,8 +185,10 @@ Playwright with Chromium against a real `vite preview` build of `dist/`, at
   [PASS] h1 id is hero-title  hero-title
   [PASS] h1 accessible name is both copy lines, once  Describe what you want to build. Get a design you can order.
   [PASS] h1 renders both copy lines, once  Describe what you want to build. Get a design you can order.
-  [PASS] h1 data-depth=far  far
+  [PASS] left column data-depth=far  far
   [PASS] right column data-depth=far  far
+  [PASS] h1 rides the far layer  closest far ancestor found
+  [PASS] h1 carries NO data-depth of its own (no nested transform)  null
   [PASS] kicker string from copy.ts  DESIGN AUTOMATION FOR BIOLOGY
   [PASS] lede string from copy.ts  Construct turns plain-English intent into ...
   [PASS] status string from copy.ts  LIVE · OPEN SOURCE · MIT LICENSED
@@ -193,8 +201,9 @@ Playwright with Chromium against a real `vite preview` build of `dist/`, at
   [PASS] measured CLS is exactly 0.00  CLS=0.0000
   [PASS] no-motion class matches emulation  no-motion=true
   [PASS] one column below 901px  335px
-  [PASS] visual sits BELOW the copy  copyBottom=768 visualTop=816
+  [PASS] visual sits BELOW the copy  copyBottom=707 visualTop=755
   [PASS] map is 300px square below 901px  300px
+  [PASS] no two hero element boxes intersect, at any scroll position  11 scroll positions clean
   [PASS] after a full scroll sweep, NO element in the hero is below opacity 1  0 hidden
   [PASS] zero console errors  0
   [PASS] zero unhandled rejections and page errors  0
@@ -206,8 +215,10 @@ Playwright with Chromium against a real `vite preview` build of `dist/`, at
   [PASS] h1 id is hero-title  hero-title
   [PASS] h1 accessible name is both copy lines, once  Describe what you want to build. Get a design you can order.
   [PASS] h1 renders both copy lines, once  Describe what you want to build. Get a design you can order.
-  [PASS] h1 data-depth=far  far
+  [PASS] left column data-depth=far  far
   [PASS] right column data-depth=far  far
+  [PASS] h1 rides the far layer  closest far ancestor found
+  [PASS] h1 carries NO data-depth of its own (no nested transform)  null
   [PASS] kicker string from copy.ts  DESIGN AUTOMATION FOR BIOLOGY
   [PASS] lede string from copy.ts  Construct turns plain-English intent into ...
   [PASS] status string from copy.ts  LIVE · OPEN SOURCE · MIT LICENSED
@@ -222,6 +233,7 @@ Playwright with Chromium against a real `vite preview` build of `dist/`, at
   [PASS] one column below 901px  828px
   [PASS] visual sits BELOW the copy  copyBottom=577 visualTop=625
   [PASS] map is 300px square below 901px  300px
+  [PASS] no two hero element boxes intersect, at any scroll position  11 scroll positions clean
   [PASS] after a full scroll sweep, NO element in the hero is below opacity 1  0 hidden
   [PASS] zero console errors  0
   [PASS] zero unhandled rejections and page errors  0
@@ -233,8 +245,10 @@ Playwright with Chromium against a real `vite preview` build of `dist/`, at
   [PASS] h1 id is hero-title  hero-title
   [PASS] h1 accessible name is both copy lines, once  Describe what you want to build. Get a design you can order.
   [PASS] h1 renders both copy lines, once  Describe what you want to build. Get a design you can order.
-  [PASS] h1 data-depth=far  far
+  [PASS] left column data-depth=far  far
   [PASS] right column data-depth=far  far
+  [PASS] h1 rides the far layer  closest far ancestor found
+  [PASS] h1 carries NO data-depth of its own (no nested transform)  null
   [PASS] kicker string from copy.ts  DESIGN AUTOMATION FOR BIOLOGY
   [PASS] lede string from copy.ts  Construct turns plain-English intent into ...
   [PASS] status string from copy.ts  LIVE · OPEN SOURCE · MIT LICENSED
@@ -249,6 +263,7 @@ Playwright with Chromium against a real `vite preview` build of `dist/`, at
   [PASS] one column below 901px  828px
   [PASS] visual sits BELOW the copy  copyBottom=577 visualTop=625
   [PASS] map is 300px square below 901px  300px
+  [PASS] no two hero element boxes intersect, at any scroll position  11 scroll positions clean
   [PASS] after a full scroll sweep, NO element in the hero is below opacity 1  0 hidden
   [PASS] zero console errors  0
   [PASS] zero unhandled rejections and page errors  0
@@ -260,8 +275,10 @@ Playwright with Chromium against a real `vite preview` build of `dist/`, at
   [PASS] h1 id is hero-title  hero-title
   [PASS] h1 accessible name is both copy lines, once  Describe what you want to build. Get a design you can order.
   [PASS] h1 renders both copy lines, once  Describe what you want to build. Get a design you can order.
-  [PASS] h1 data-depth=far  far
+  [PASS] left column data-depth=far  far
   [PASS] right column data-depth=far  far
+  [PASS] h1 rides the far layer  closest far ancestor found
+  [PASS] h1 carries NO data-depth of its own (no nested transform)  null
   [PASS] kicker string from copy.ts  DESIGN AUTOMATION FOR BIOLOGY
   [PASS] lede string from copy.ts  Construct turns plain-English intent into ...
   [PASS] status string from copy.ts  LIVE · OPEN SOURCE · MIT LICENSED
@@ -276,7 +293,8 @@ Playwright with Chromium against a real `vite preview` build of `dist/`, at
   [PASS] two columns at 901px and above  572px 467.984px
   [PASS] split is 55/45  55.0 / 45.0
   [PASS] map fills the right column, capped at 500px  468px in a 468px column
-  [INFO] hero copy column bottom edge  statusBottom=1044 viewport=900
+  [INFO] hero copy column bottom edge  statusBottom=920 viewport=900
+  [PASS] no two hero element boxes intersect, at any scroll position  11 scroll positions clean
   [PASS] after a full scroll sweep, NO element in the hero is below opacity 1  0 hidden
   [PASS] zero console errors  0
   [PASS] zero unhandled rejections and page errors  0
@@ -288,8 +306,10 @@ Playwright with Chromium against a real `vite preview` build of `dist/`, at
   [PASS] h1 id is hero-title  hero-title
   [PASS] h1 accessible name is both copy lines, once  Describe what you want to build. Get a design you can order.
   [PASS] h1 renders both copy lines, once  Describe what you want to build. Get a design you can order.
-  [PASS] h1 data-depth=far  far
+  [PASS] left column data-depth=far  far
   [PASS] right column data-depth=far  far
+  [PASS] h1 rides the far layer  closest far ancestor found
+  [PASS] h1 carries NO data-depth of its own (no nested transform)  null
   [PASS] kicker string from copy.ts  DESIGN AUTOMATION FOR BIOLOGY
   [PASS] lede string from copy.ts  Construct turns plain-English intent into ...
   [PASS] status string from copy.ts  LIVE · OPEN SOURCE · MIT LICENSED
@@ -304,7 +324,8 @@ Playwright with Chromium against a real `vite preview` build of `dist/`, at
   [PASS] two columns at 901px and above  572px 467.984px
   [PASS] split is 55/45  55.0 / 45.0
   [PASS] map fills the right column, capped at 500px  468px in a 468px column
-  [INFO] hero copy column bottom edge  statusBottom=1044 viewport=900
+  [INFO] hero copy column bottom edge  statusBottom=944 viewport=900
+  [PASS] no two hero element boxes intersect, at any scroll position  11 scroll positions clean
   [PASS] after a full scroll sweep, NO element in the hero is below opacity 1  0 hidden
   [PASS] zero console errors  0
   [PASS] zero unhandled rejections and page errors  0
@@ -324,16 +345,10 @@ package to change for it.
 
 ### Note on hero height at 1440x900
 
-Measured, informational, not a failure: with `--t-hero` at its 5.25rem ceiling
-inside the 55 percent column (572px), the headline runs six lines and the copy
-column's bottom edge lands at y=1044 on a 900px-tall viewport. The kicker, the
-headline and the lede are all above the fold; the buttons and the status line
-sit just below it at that particular viewport height. Both the type token and
-the 55/45 split are fixed by the spec, so this is not adjustable from inside
-this package. It is recorded here so WP-11's responsive pass and WP-17's review
-can see the number rather than rediscover it. Because the load beats are clock
-driven, nothing is stranded invisible: scrolling a few pixels reveals fully
-settled elements, never hidden ones.
+Measured, informational: the copy column's bottom edge lands at y=920 on a
+900px-tall viewport, so the kicker, the headline, the lede and both buttons are
+above the fold and only the last 20px of the status line is not. The status
+line is the t=2.40s beat and the least load bearing string in the section.
 
 ---
 
@@ -346,3 +361,127 @@ map mounts.
 Measured CLS is exactly 0.0000 at all three viewports in both motion modes,
 with zero console errors, zero unhandled rejections, and no element anywhere in
 the hero below opacity 1.
+
+---
+
+## Reopened 2026-09-18: the headline overlapped the kicker
+
+Reported by the coordinator against the deployed page: at 1440x900 the kicker
+occupied y=151 to y=169 and the h1 box started at y=156, a 13px overlap.
+
+### It was not the font
+
+I pulled the coordinator's `base.css` change first, as instructed (Instrument
+Serif moved from the width-matched `size-adjust: 135.09%` to Georgia's own
+metrics, `size-adjust: 100%`, `ascent-override: 91.70%`,
+`descent-override: 21.90%`) and rebuilt before touching anything.
+
+That change was worth having: the headline went from six lines and 582px tall
+to five lines and 465px tall, and the glyphs no longer print on top of the
+kicker's glyphs. But the box overlap survived it, unchanged in cause and almost
+unchanged in size. Measured on the rebuilt page at 1440x900:
+
+```
+.sec-hero__kicker   top 172.0  bottom 190.0   transform: none
+#hero-title         top 177.2  bottom 641.9   transform: matrix(1,0,0,1,0,-28.84)
+OVERLAP kicker x hero-title   12.8px vertical
+```
+
+### The actual cause: a lone parallax element inside a static stack
+
+The heading's untransformed top is 206.0, which is the kicker's bottom of 190
+plus the `--sp-4` gap of 16. Correct layout. The 28.84px that closed the gap is
+the section 6.5 parallax transform, and it is present at `scrollY = 0`:
+
+```
+translateY = (1 - factor) * (scrollY - elementTop)
+           = (1 - 0.86)   * (0 - 206.0)
+           = -28.84px
+```
+
+That formula is not zero at rest for any element that is not at the very top of
+the document. It is a standing upward offset of 0.14 times the element's own
+document top. The kicker carries no `data-depth`, so it does not move with the
+heading, and the 16px gap cannot absorb 28.84px.
+
+Worse, the offset changes sign. Once `scrollY` passes the heading's top the
+transform becomes positive and the heading slides DOWN through the lede, all
+the way to the section 6.5 clamp of +80px. Measured with `data-depth` on the
+`<h1>`, at 1440x900:
+
+| scrollY | `#hero-title` x `.sec-hero__lede` |
+|---|---|
+| 0 | no overlap (it is overlapping the kicker instead, by 12.8px) |
+| 500 | 10.4px |
+| 600 | 24.4px |
+| 700 | 38.4px, and the descenders of "you can order." visibly touch the lede |
+| 1000 and beyond | 56.0px, the clamp |
+
+Confirmed visually in screenshots at both ends. So the reported kicker overlap
+was one half of a single defect: the heading has 115.6px of travel relative to
+neighbours that have none, and 24px of clearance below it.
+
+### The fix: one transformed layer per column
+
+In `hero.ts`, `data-depth="far"` moved off the `<h1>` and onto
+`.sec-hero__copy`, the left column. `.sec-hero__visual` keeps its own. The
+heading still rides the far depth exactly as spec 7.1 asks, but every element
+in the column now shares one offset, so internal spacing is rigid at every
+scroll position and nothing inside can collide with anything else inside. The
+column separates from the rest of the page as the visitor leaves, which is the
+motion spec 7.1 describes.
+
+This is the general rule the defect teaches, and it applies to every section,
+not just this one: **`data-depth` belongs on a layer, never on a single element
+that has static siblings above or below it.** A loose `data-depth` element
+inside a tight vertical stack will walk through its neighbours across a range
+of `0.14 * elementTop + 80` pixels.
+
+An intermediate fix that only widened the kicker gap to `--sp-16` is recorded
+here as rejected: it cleared the kicker (28.4px of clearance, measured) but did
+nothing about the heading walking down into the lede, and buying that clearance
+too would have meant a 96px gap that reads as a 131px hole at rest, which is
+the worst possible trade in the first eight seconds.
+
+`.sec-hero__title`'s desktop `margin-block-start` is now `--sp-8`, and it is
+purely typographic: at the 5.25rem ceiling the headline needs more air under a
+12px kicker than the `--sp-4` that suits the 2.75rem floor on a phone. It is no
+longer doing any motion work.
+
+### Measured after
+
+At 1440x900, `scrollY = 0`:
+
+```
+.sec-hero__kicker   top 147.9  bottom 165.9
+#hero-title         top 197.9  bottom 662.7     32.0px clear of the kicker
+.sec-hero__lede     top 686.7  bottom 806.0     24.0px clear of the heading
+.sec-hero__actions  top 838.0  bottom 878.0
+.sec-hero__status   top 902.0  bottom 920.0
+.sec-hero__visual   top 278.7  bottom 746.7
+```
+
+Those gaps are now constant at every scroll position, because both columns are
+rigid. Pairwise bounding-box intersection, every pair of the six hero elements,
+at scrollY 0, 100, 200, 300, 400, 500, 600, 700, 800, 1000 and 1200:
+
+```
+375x812    no overlap at any scroll position
+900x1200   no overlap at any scroll position
+1440x900   no overlap at any scroll position
+1440x1200  no overlap at any scroll position
+1920x1080  no overlap at any scroll position
+```
+
+### The lesson for the verification suite
+
+The coordinator's point is correct and worth keeping: 150 passing checks did
+not catch this, because opacity and CLS assertions cannot see overlap. CLS was
+a genuine 0.0000 the whole time, since the parallax is a transform and
+transforms are excluded from layout-shift scoring by design. Every element was
+at opacity 1. The section was still visually broken.
+
+The suite now carries a pairwise bounding-box intersection assertion over all
+six laid-out hero elements, run at eleven scroll positions per viewport, at
+375, 900 and 1440, in both motion modes. It fails on any intersection over
+0.5px. Total is now 168 checks, 0 failures.

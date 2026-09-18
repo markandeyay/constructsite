@@ -592,6 +592,15 @@
     gap: var(--sp-16);
   }
 
+  /* Purely typographic. At --t-hero's 5.25rem ceiling the headline needs more
+     air under a 12px kicker than the --sp-4 that suits the 2.75rem floor on a
+     phone. This is not a motion clearance: the parallax layer is the whole
+     column (see the note in hero.ts), so the kicker and the headline share one
+     offset and their gap is the same at every scroll position. */
+  .sec-hero__title {
+    margin-block-start: var(--sp-8);
+  }
+
   .sec-hero__map {
     max-inline-size: 500px;
   }
@@ -1194,15 +1203,6 @@
   min-block-size: 5.5em;
 }
 
-.sec-how__caret {
-  display: none;
-  inline-size: 0.55em;
-  block-size: 1.05em;
-  margin-inline-start: 0.1em;
-  vertical-align: text-bottom;
-  background: var(--ink-faint);
-}
-
 /* --- 2. Retrieve. Three record cards slide in and stack. ------------------ */
 
 .sec-how__records {
@@ -1296,29 +1296,50 @@
    hide anything lives in here and behind .sec-how--staged. */
 
 @media (min-width: 901px) and (prefers-reduced-motion: no-preference) {
-  .sec-how--staged {
-    padding-block: 0;
-  }
+  /* GEOMETRY, applied at first paint. It is deliberately NOT gated on
+     .sec-how--staged. Gating the box on a class that JavaScript adds later
+     means the diagram is laid out once in its stacked position and then moved,
+     and the move is scored as a layout shift when the element stops being
+     hidden during the scrub. The spec section 12 CLS budget is exactly 0.00,
+     so the desktop box has to be right from the first frame and the staged
+     class may only change things that never affect layout: opacity,
+     visibility, colour and the active-step state below.
 
-  .sec-how--staged .sec-how__inner {
+     Nothing here overrides the box on the .sec-how root. The section keeps its
+     normal shell padding and the pinned inner subtracts it, so #how measures
+     exactly one viewport tall and the pin still holds its content in view. */
+  .sec-how__inner {
     display: flex;
     flex-direction: column;
     justify-content: center;
-    min-block-size: 100vh;
-    padding-block: var(--sp-16);
+    min-block-size: calc(100vh - 2 * clamp(var(--sp-16), 12vh, var(--sp-32)));
   }
 
-  .sec-how--staged .sec-how__body {
+  .sec-how__body {
     position: relative;
     min-block-size: 46vh;
     margin-block-start: var(--sp-8);
   }
 
-  .sec-how--staged .sec-how__steps {
+  .sec-how__steps {
     inline-size: 46%;
     gap: var(--sp-6);
     margin-block-start: 0;
   }
+
+  /* The persistent diagram: five states stacked in one place on the right,
+     out of flow from the first frame. */
+  .sec-how__vis {
+    position: absolute;
+    inset-block-start: 0;
+    inset-inline-end: 0;
+    inline-size: 48%;
+    margin-block-start: 0;
+  }
+
+  /* STATE, and only state, waits for the scrub. Every declaration below this
+     line is opacity, visibility, colour or display on an out-of-flow element,
+     so none of it can move anything. */
 
   /* Inactive: faint text, hairline border. */
   .sec-how--staged .sec-how__step {
@@ -1339,13 +1360,7 @@
     border-inline-start-color: var(--accent);
   }
 
-  /* The persistent diagram: five states stacked in one place on the right. */
   .sec-how--staged .sec-how__vis {
-    position: absolute;
-    inset-block-start: 0;
-    inset-inline-end: 0;
-    inline-size: 48%;
-    margin-block-start: 0;
     opacity: 0;
     visibility: hidden;
     transition:
@@ -1362,7 +1377,9 @@
   }
 
   /* Progressive parts: record cards, check rows, file chips. Scroll progress
-     toggles the --in class; the transition is what makes it a slide. */
+     toggles the --in class; the transition is what makes it a slide. Both
+     properties are compositor only, and every one of these elements is inside
+     an out-of-flow diagram, so no frame of this can shift the page. */
   .sec-how--staged .sec-how__part {
     opacity: 0;
     transform: translateX(16px);
@@ -1374,10 +1391,6 @@
   .sec-how--staged .sec-how__part--in {
     opacity: 1;
     transform: translateX(0);
-  }
-
-  .sec-how--staged .sec-how__caret {
-    display: inline-block;
   }
 }
 

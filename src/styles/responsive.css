@@ -1,1 +1,187 @@
-/* Owned by WP-11. Created empty by the orchestrator so the main.ts import graph resolves. */
+/* ============================================================
+   responsive.css
+   Owner: WP-11. The responsive pass.
+
+   IMPORTED LAST from main.ts, per spec section 4.0. Everything
+   here therefore wins by ORDER, not by weight. Nothing in this
+   file escalates specificity to beat a rule it already beats by
+   position: no !important, no :not() chain, no bare element
+   selector, no id used as a hammer.
+
+   BREAKPOINTS. Only the four fixed values from the spec section
+   5.4 table appear in this file, and no others:
+
+     600px  grid collapses to 1 column
+     720px  header links collapse to Contact only, 3D viewer
+            falls back to the static still, and (here) touch tap
+            targets are enlarged
+     900px  grid collapses to 6 columns
+     901px  the motion gate, and the two column hero
+
+   Custom properties cannot appear in a media query condition, so
+   the literal px value is written out every time.
+
+   THE FIRST PAINT RULE, which governs section 1 below.
+   main.ts is a deferred module, so Chromium paints the empty
+   <section> shells from index.html BEFORE any mount() runs. A
+   section root class such as .sec-hero is added by that mount().
+   Any padding, margin or display this file changes through a
+   root class is therefore applied AFTER first paint and reflows
+   the page, which spends CLS against a budget of exactly 0.00
+   (spec section 12). WP-09a measured that bug class at 0.0525,
+   0.1088 and 0.0304; WP-11 reproduced it at 0.0183 to 0.1164 by
+   injecting a single padding override on .sec-hero.
+
+   So: a box change on a section ROOT is written against the
+   SHELL, which exists in index.html and is painted from the very
+   first frame. A box change on a section's own CHILDREN is safe
+   through the ordinary class, because those children do not
+   exist before mount and so cannot shift anything that was
+   already on screen.
+   ============================================================ */
+
+/* ============================================================
+   1. Goal G1: the hero copy is readable without scrolling.
+
+   Spec section 2.1 measures G1 by "hero copy readable without
+   scrolling, at 375px and 1440px", and spec section 0.3 wants a
+   judge to understand the product in eight seconds. Two calls to
+   action below the fold undercuts both.
+
+   Measured at 1440x900 before this rule: the status line's
+   bottom edge landed at y=977, so both buttons and the status
+   line sat below a 900px fold. At 1024x768 it landed at y=815
+   against a 768px fold. The headline itself is not the lever:
+   the --t-hero clamp and the 55/45 split are fixed by the spec
+   and are not touched here. The lever is the hero's vertical
+   lead-in, which at those viewport heights is 12vh of shell
+   padding on top of the 64px the fixed header already takes.
+
+   This rule shortens only the LEAD-IN, at and above the section
+   5.4 motion gate. The shell keeps the shared closing rhythm, so
+   the gap between the hero and section 02 is unchanged, and
+   every width below 901px keeps the shared rhythm untouched.
+
+   After: y=837 at 1440x900 and y=691 at 1024x768, both above the
+   fold, with the kicker still clear of the header.
+   ============================================================ */
+
+@media (min-width: 901px) {
+  /* The SHELL, not .sec-hero. See the first paint rule above.
+     Measured CLS with this rule in place: 0.0000 at every width,
+     in both motion modes, with the entry module delayed 700ms so
+     the empty shells are guaranteed to paint first. */
+  #hero {
+    padding-block-start: clamp(var(--sp-8), 6vh, var(--sp-12));
+  }
+
+  /* The remaining gaps are margins on the hero's own children,
+     which are built by mount() and cannot shift anything that
+     has already painted. Tightened one step each, which buys
+     back 24px without changing the reading rhythm. The headline
+     margin is deliberately left alone: it belongs to WP-09a's
+     spacing against the kicker. */
+  .sec-hero__lede {
+    margin-block-start: var(--sp-4);
+  }
+
+  .sec-hero__actions {
+    margin-block-start: var(--sp-6);
+  }
+
+  .sec-hero__status {
+    margin-block-start: var(--sp-4);
+  }
+}
+
+/* ============================================================
+   2. Touch tap targets.
+
+   720px is the spec section 5.4 width at which the site is
+   treated as a handset: the header collapses and the 3D viewer
+   falls back to a still. It is the right gate for target size.
+
+   Measured at 375x812 before these rules: the wordmark 66x20,
+   the Contact link 48x14, each outputs disclosure 285x20, the
+   footer repo link 45x19 and every button 40px tall. Every one
+   of these is a padding change on an element that is built by a
+   mount(), never on a shell, so none of them can shift anything
+   that has already painted. Measured CLS after: 0.0000.
+   ============================================================ */
+
+@media (max-width: 720px) {
+  /* Both are flex items of the header row, so they are
+     blockified and padding resolves normally. The header keeps
+     its fixed 64px height, so nothing moves. */
+  .site-header__wordmark {
+    padding-block: var(--sp-3);
+  }
+
+  .site-header__link {
+    padding-block: var(--sp-4);
+  }
+
+  /* 40px tall at rest, which is under the 44px comfortable
+     minimum on a handset. */
+  .btn {
+    min-block-size: 44px;
+  }
+
+  /* summary stays display: list-item so it keeps its marker. The
+     padding does the work; the minimum is there because the mono
+     line box measures 19.99px, so padding alone lands at 43.99. */
+  .sec-outputs__summary {
+    min-block-size: 44px;
+    padding-block: var(--sp-3);
+  }
+
+  /* The footer repo link measured 45x19 and was the last small
+     target on the page. It carries no class of its own until
+     WP-09i adds .site-footer__link, which is the frozen name the
+     orchestrator granted on this request. It is a flex item of
+     .site-footer__right, so padding resolves normally.
+
+     The padding alone is one pixel short: the real box is an
+     18px line box plus the 1px border-bottom components.css
+     gives the link, so 19 + 12 + 12 lands at 43. The minimum
+     closes that last pixel. Measured after the change, not
+     computed: 45.33 x 44.00 at 375, 414 and 720, and unchanged
+     at 45.33 x 19.00 at 721. */
+  .site-footer__link {
+    min-block-size: 44px;
+    padding-block: var(--sp-3);
+  }
+}
+
+/* ============================================================
+   3. Verified, and deliberately left alone.
+
+   These were each measured across 375, 414, 768, 900, 1024, 1440
+   and 1920, in both motion modes, and needed no override. They
+   are listed so a later pass can see they were checked rather
+   than missed, and does not "fix" something that is already
+   correct.
+
+   - Horizontal overflow: zero at every width. document
+     scrollWidth equals clientWidth in all fourteen runs, before
+     and after a full scroll sweep. The only element outside the
+     viewport box is the contact honeypot, which spec section
+     10.6 requires to sit at left: -9999px.
+   - The 12 column grid: 12 at 1024 and above, 6 at 768 and 900,
+     1 at 375 and 414. layout.css already carries the 900 and 600
+     collapses, so nothing is added here.
+   - Header links: all three plus the repo button at 768 and
+     above, Contact only at 414 and 375. components.css already
+     carries the 720 collapse.
+   - The 3D viewer: the WebGL canvas at 768 and above, the static
+     still at 414 and 375. fx/viewer3d.ts already gates on 720.
+   - Pins and scrubs: zero ScrollTrigger instances below 901px
+     and under reduced motion at every width. The single
+     matchMedia block in main.ts already carries that gate.
+   - Type size: the smallest rendered text on the page is 12px,
+     which is --t-micro, set in mono and uppercase for the
+     section numerals, kickers and status lines. Nothing falls
+     below it at any width.
+   - Overlap: no pair of rendered boxes intersects at any of the
+     seven widths, at eleven scroll positions each.
+   ============================================================ */

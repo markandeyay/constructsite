@@ -21,7 +21,20 @@
  *    `prefersReducedMotion()` is true.
  */
 
-import { Viewer } from 'seqviz';
+/* WP-15 (performance pass), narrow orchestrator-granted exception, and the
+   ONLY change this package made to this file: the seqviz VALUE import became a
+   dynamic import inside `mountPlasmid`, below. The type import stays, because a
+   type import is erased at compile time and carries no runtime weight.
+
+   Why this is not a budget dodge. Spec section 12 says seqviz is above the fold
+   so it cannot be deferred the way 3Dmol is. That sentence is about deferring
+   the MAP, not the IMPORT. The map still mounts exactly where it always did:
+   after first paint, inside the `requestIdleCallback` of `afterFirstPaint()`
+   required by spec section 8.6, with the Safari `setTimeout(0)` fallback. The
+   import now happens in that same idle callback instead of in the entry chunk,
+   which moves seqviz plus React and react-dom out of the initial bundle and
+   changes no visual behaviour, no mount timing, no draw animation, no tooltip
+   behaviour, no reduced-motion guarantee and no aria-label. */
 import type { SeqVizProps } from 'seqviz';
 
 import { prefersReducedMotion } from '../core/motion';
@@ -664,6 +677,10 @@ export async function mountPlasmid(
   const tip = buildTooltip();
 
   await afterFirstPaint();
+
+  // WP-15: seqviz is imported here, inside the spec section 8.6 idle callback,
+  // rather than at module scope. Same mount moment, smaller entry chunk.
+  const { Viewer } = await import('seqviz');
 
   const payload = await loadPlasmidPayload();
 

@@ -264,3 +264,180 @@ unhandled rejections across all five runs.
    or onto anything inside it.
 7. **Step cards use the shared `.reveal` primitive** for the stacked variant, at
    a 70ms stagger, which settles synchronously under reduced motion.
+
+---
+
+# WP-09c REOPENED: spec section 12 CLS violation, fixed
+
+Reopened 2026-09-18T03:20:00Z. Closed again 2026-09-18T03:58:00Z.
+
+WP-11 measured a live CLS violation in this section on a STEPPED scroll sweep at
+and above 901px with motion allowed. The spec section 12 budget is exactly 0.00.
+Confirmed, diagnosed, fixed, and re-measured at 0.000000 attributable to
+`.sec-how` at every width in both motion modes.
+
+## Measured, before and after
+
+Method: `PerformanceObserver` on `layout-shift` installed via an init script
+before first paint, `buffered: true`, `hadRecentInput` entries discarded.
+STEPPED sweep only, one viewport third per jump with a settle between jumps,
+across the full document height. Fresh browser context per viewport. The harness
+is the one described above: it mirrors `main.ts` and calls `how.initScrub()`
+from one `gsap.matchMedia(MQ_DESKTOP_MOTION)` block, in document order.
+
+"attributable to .sec-how" is the sum of every layout-shift entry naming a node
+inside this section as a source.
+
+| Viewport | Mode | CLS attributable to .sec-how BEFORE | AFTER |
+|---|---|---|---|
+| 901x900 | motion | 0.1003 | **0.000000** |
+| 1024x768 | motion | 0.1283 | **0.000000** |
+| 1440x900 | motion | 0.0940 | **0.000000** |
+| 1920x1080 | motion | 0.0620 | **0.000000** |
+| 901x900 | reduced | 0.000000 | **0.000000** |
+| 1024x768 | reduced | 0.000000 | **0.000000** |
+| 1440x900 | reduced | 0.000000 | **0.000000** |
+| 1920x1080 | reduced | 0.000000 | **0.000000** |
+
+Zero console errors and zero page errors across all eight runs, before and after.
+
+The dominant BEFORE entries, straight from the layout-shift sources at 1440x900:
+
+```
+DIV.sec-how__vis sec-how__vis--on  [265,0,243,243] -> [742,323,530,320]  value 0.0632
+DIV.sec-how__vis                   [262,0,249,101] -> [739,321,536,83]   value 0.0307
+```
+
+AFTER, at every width in both modes, no layout-shift entry names any node in
+this section at all.
+
+## The real mechanism, which was not only the staged class
+
+Two causes, found by probing the element's containing block frame by frame
+rather than by reading the CSS.
+
+1. **The staged geometry was switched on by JavaScript.** `.sec-how__vis` was
+   laid out in its stacked position, then `initScrub` added `.sec-how--staged`,
+   which moved it to `position: absolute`. That is WP-11's diagnosis and it was
+   correct.
+
+2. **The diagram's containing block flipped underneath it.** This was the larger
+   half, and moving the geometry into the media query alone did NOT fix it: the
+   numbers barely moved, and the "previous" rect was still the step-sized box.
+   The cause is that `.reveal` in `base.css` carries
+   `transform: translateY(14px)`, and `core/observe.ts` adds
+   `will-change: transform` for the duration of the transition and removes it
+   afterwards. A transform, and a `will-change: transform`, each make an element
+   the containing block for its absolutely positioned descendants. The diagram
+   was a child of the revealing step, so its 48% box resolved against the step
+   (roughly 249px wide) and jumped to `.sec-how__body` (roughly 536px wide) when
+   the hint was dropped. That flip is what the sources above are showing: the
+   width changes as well as the position, which is the tell.
+
+## The fix
+
+Three changes, all inside files this package owns.
+
+1. **Desktop geometry now applies at first paint.** Everything that sets a box
+   (`.sec-how__inner`, `.sec-how__body`, `.sec-how__steps`, `.sec-how__vis`)
+   lives in `@media (min-width: 901px) and (prefers-reduced-motion:
+   no-preference)` and is no longer gated on `.sec-how--staged`. The staged
+   class now carries only opacity, visibility, colour and active-step state,
+   none of which can move anything.
+
+2. **The reveal moved off the step onto a sibling.** Each step is now
+   `li.sec-how__step > div.sec-how__steptext.reveal` plus
+   `div.sec-how__vis.reveal`. The diagram is a SIBLING of the revealing text,
+   not its child, so no ancestor of the diagram is ever transformed and its
+   containing block is `.sec-how__body` from the first frame to the last. A
+   transform on the diagram itself is harmless: the layout instability API does
+   not score transform movement.
+
+3. **No root box override was introduced.** `.sec-how--staged { padding-block:
+   0 }` was REMOVED rather than promoted into the media query, since WP-11 asked
+   for no box-affecting override on the `.sec-how` root. The section keeps its
+   normal shell padding and `.sec-how__inner` subtracts it:
+   `min-block-size: calc(100vh - 2 * clamp(var(--sp-16), 12vh, var(--sp-32)))`.
+   `#how` therefore still measures exactly one viewport tall, and the pinned
+   block holds its content in view with symmetric breathing room above and
+   below.
+
+The caret in step 1 was also deleted. It was the only remaining element that
+moved, at 0.000011 per entry, and it was decorative rather than copy. The prompt
+still types out in mono, scrubbed by scroll.
+
+## What was re-proved, not just assumed
+
+Re-run in full after the restructure, same harness, same method:
+
+```
+=== 1440x900, reduced motion OFF ===
+sec-how--staged present: true
+ScrollTrigger total=1 pins=1 scrubs=1
+ranges: [{"start":1563,"end":6063,"pinned":true}]
+pin: {"start":1563,"end":6063,"distance":4500,"vh":900,"pinClass":"sec-how__inner"}
+expected pinned distance 5 * vh = 4500
+  p=0.0 y=1563 activeStep=0 visOn=0 typedChars=0 partsIn=0 innerTop=385
+  p=0.1 y=2013 activeStep=0 visOn=0 typedChars=28 partsIn=0 innerTop=108
+  p=0.2 y=2463 activeStep=0 visOn=0 typedChars=53 partsIn=0 innerTop=108
+  p=0.3 y=2913 activeStep=1 visOn=1 typedChars=53 partsIn=2 innerTop=108
+  p=0.4 y=3363 activeStep=1 visOn=1 typedChars=53 partsIn=3 innerTop=108
+  p=0.5 y=3813 activeStep=2 visOn=2 typedChars=53 partsIn=3 innerTop=108
+  p=0.6 y=4263 activeStep=2 visOn=2 typedChars=53 partsIn=3 innerTop=108
+  p=0.7 y=4713 activeStep=3 visOn=3 typedChars=53 partsIn=6 innerTop=108
+  p=0.8 y=5163 activeStep=3 visOn=3 typedChars=53 partsIn=7 innerTop=108
+  p=0.9 y=5613 activeStep=4 visOn=4 typedChars=53 partsIn=9 innerTop=108
+  p=1.0 y=6063 activeStep=4 visOn=4 typedChars=53 partsIn=10 innerTop=108
+distinct active steps across the pinned range: [0,1,2,3,4]  ALL FIVE ADVANCE
+pinned innerTop mid-range: [108]
+active step colour / border at p=0.5: rgb(20, 23, 26) | 2px rgb(31, 107, 74)
+inactive step colour / border: rgb(101, 110, 119) | rgb(226, 223, 217)
+
+=== 900px, reduced motion OFF ===
+ScrollTrigger total=0 pins=0 scrubs=0
+all five steps readable: true
+elements at opacity 0 inside #how: 0
+
+=== 375px, reduced motion OFF ===
+ScrollTrigger total=0 pins=0 scrubs=0
+all five steps readable: true
+elements at opacity 0 inside #how: 0
+
+=== 1440px, reduced motion ON ===
+ScrollTrigger total=0 pins=0 scrubs=0
+html.no-motion: true
+all five steps readable: true
+elements at opacity 0 inside #how: 0
+
+=== 375px, reduced motion ON ===
+ScrollTrigger total=0 pins=0 scrubs=0
+html.no-motion: true
+all five steps readable: true
+elements at opacity 0 inside #how: 0
+
+console errors: 0
+page errors / unhandled rejections: 0
+```
+
+The pinned distance is still 4500px against a 900px viewport, exactly five
+viewport heights. `innerTop` now holds at 108px rather than 0, which is the
+section's own top padding, and is the deliberate consequence of removing the
+root padding override: `clamp(var(--sp-16), 12vh, var(--sp-32))` resolves to
+108px at a 900px viewport, and the inner subtracts twice that from its
+`min-block-size`, so the pinned block is centred in the viewport rather than
+flush to its top edge.
+
+`npx tsc --noEmit` clean. `npm run build` clean. The harness, the CLS script,
+the probe and the verification script were all deleted. `main.ts`, `index.html`
+and `responsive.css` were never touched. The preview server was started on port
+5197 by this package and stopped by that one PID, nothing else.
+
+## One observation for WP-11 and WP-15, not mine to fix
+
+Under reduced motion the WHOLE-PAGE CLS is large and none of it is this section:
+0.3552 at 901x900, 0.2797 at 1024x768, 0.2222 at 1440x900, 0.1875 at 1920x1080,
+with `.sec-how` contributing 0.000000 at every one. At 1440x900 it is a single
+entry of 0.2222 whose only source is `BODY`, so the whole document moves once.
+That is page level, most likely the scroll driver or the header, and it does not
+reproduce with motion allowed. Logged here rather than chased, since this
+package owns neither file.

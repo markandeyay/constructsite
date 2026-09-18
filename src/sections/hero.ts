@@ -28,6 +28,30 @@
  * The hero is the most likely place on the site to strand an element at
  * opacity 0, so it owns none of that state itself. That makes the gate
  * structural rather than lucky.
+ *
+ * PARALLAX: ONE TRANSFORMED LAYER PER COLUMN, NEVER A LOOSE ELEMENT INSIDE
+ * ONE. Spec section 7.1 puts the headline and the right column at the far
+ * depth. The `data-depth` attribute therefore sits on `.sec-hero__copy` and on
+ * `.sec-hero__visual`, the two columns, and the headline rides the left one.
+ *
+ * It is NOT on the `<h1>` itself, because spec section 6.5's transform is
+ * `(1 - factor) * (scrollY - elementTop)` clamped to plus or minus 80px, and
+ * that is a per element offset driven by each element's own document top. A
+ * single transformed element inside an otherwise static stack therefore slides
+ * through its own neighbours across a 115px range, while they stay put.
+ * Measured at 1440x900 with the attribute on the `<h1>`:
+ *
+ *   scrollY=0     heading box 12.8px INTO the kicker's box (standing offset
+ *                 of -28.8px before the visitor has scrolled at all)
+ *   scrollY=500   heading box 10.4px into the lede
+ *   scrollY=700   heading box 38.4px into the lede, and the descenders of
+ *                 "you can order." visibly touch the lede's first line
+ *   scrollY=1000+ 56px, the +80px clamp
+ *
+ * With the attribute on the column, every element inside it shares one offset,
+ * so internal spacing is rigid at every scroll position and nothing can
+ * collide. The column still separates from the rest of the page as the visitor
+ * leaves, which is what spec section 7.1 asks the motion to express.
  */
 
 import { copy, GITHUB_URL } from '../content/copy';
@@ -281,7 +305,11 @@ export function mount(root: HTMLElement): void {
 
   /* --- Left column: every string comes from copy.ts ---------------------- */
 
+  // Spec section 7.1, motion on scroll out: the headline rides at the far
+  // parallax depth. The attribute goes on the COLUMN, not on the <h1> itself,
+  // and that placement is load bearing. See the note above `mount`.
   const left = el('div', 'sec-hero__copy');
+  left.dataset.depth = 'far';
 
   // Kicker, mono micro. `.micro` is WP-05's shared component: consumed, not
   // restyled beyond the colour this section asks for.
@@ -292,9 +320,6 @@ export function mount(root: HTMLElement): void {
   // index.html already carries aria-labelledby="hero-title".
   const title = el('h1', 'sec-hero__title');
   title.id = 'hero-title';
-  // Spec section 7.1, motion on scroll out: the headline sits at the far
-  // parallax depth. The attribute is declarative and core/motion.ts reads it.
-  title.dataset.depth = 'far';
   const lineA = headlineLine(copy.hero.h1a);
   const lineB = headlineLine(copy.hero.h1b);
   title.appendChild(lineA);

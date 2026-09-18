@@ -110,6 +110,24 @@ function boot(): void {
   /* ==== /WP-10 ==== */
 
   /* ==== WP-15: perf instrumentation. Only WP-15 writes here. ==== */
+  /*
+   * One mark and one measure, closing the synchronous boot window: every
+   * section has been mounted and the single matchMedia block has been built by
+   * the time this line runs. `wp15:boot` spans the navigation time origin to
+   * here, so `qa/perf.mjs` and any profile can name the boot cost instead of
+   * inferring it from where the long tasks happen to fall.
+   *
+   * It is deliberately two User Timing calls and nothing else. User Timing
+   * entries cost microseconds, they are already buffered by the browser, and
+   * they add no listener, no timer and no allocation per frame. Nothing here
+   * may cost what it measures.
+   */
+  try {
+    performance.mark('wp15:boot-end');
+    performance.measure('wp15:boot', undefined, 'wp15:boot-end');
+  } catch {
+    /* User Timing is optional: a browser without it must still boot. */
+  }
   /* ==== /WP-15 ==== */
 
   void document.fonts.ready.then(() => {

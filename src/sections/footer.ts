@@ -37,6 +37,10 @@ export function mount(root: HTMLElement): void {
     .forEach((part) => {
       if (part.toLowerCase().includes('github')) {
         const a = document.createElement('a');
+        // `.site-footer__link` is the hook WP-11's touch-target rule in
+        // responsive.css selects. The anchor carried no class, and a bare
+        // element descendant selector is banned by spec 18.3.
+        a.className = 'site-footer__link';
         a.href = GITHUB_URL;
         a.target = '_blank';
         a.rel = 'noopener noreferrer';

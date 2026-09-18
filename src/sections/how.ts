@@ -139,9 +139,8 @@ function buildDescribe(vis: HTMLElement): { typeTarget: HTMLElement; typeText: s
 
   const shell = el('div', 'sec-how__prompt');
   const text = el('span', 'sec-how__prompt-text', c.steps[0].line);
-  const caret = el('span', 'sec-how__caret');
 
-  shell.append(text, caret);
+  shell.appendChild(text);
   vis.appendChild(shell);
 
   return { typeTarget: text, typeText: c.steps[0].line };
@@ -282,13 +281,27 @@ export function mount(root: HTMLElement): void {
 
   for (let i = 0; i < STEP_COUNT; i += 1) {
     const source = c.steps[i];
-    const step = el('li', 'sec-how__step reveal');
+    const step = el('li', 'sec-how__step');
 
+    // THE REVEAL NEVER GOES ON THE STEP ITSELF. `.reveal` carries a transform,
+    // and `core/observe.ts` adds `will-change: transform` while the transition
+    // runs and takes it away again afterwards. Each of those three states makes
+    // the element a containing block for its absolutely positioned
+    // descendants, so a diagram nested inside a revealing step would resolve
+    // its box against the step, then jump to the body when the hint was
+    // dropped. That jump is a layout shift, and the spec section 12 CLS budget
+    // is exactly 0.00. The text sits in its own wrapper, and the diagram is its
+    // SIBLING, so no ancestor of the diagram is ever transformed.
+    const text = el('div', 'sec-how__steptext reveal');
     const label = el('h3', 'sec-how__label', source.label);
     const line = el('p', 'sec-how__line', source.line);
-    const vis = el('div', 'sec-how__vis');
+    text.append(label, line);
 
-    step.append(label, line, vis);
+    // A transform on the diagram itself is safe: it moves no ancestor, and the
+    // layout instability API does not score transform movement at all.
+    const vis = el('div', 'sec-how__vis reveal');
+
+    step.append(text, vis);
     list.appendChild(step);
 
     let parts: HTMLElement[] = [];
@@ -314,7 +327,8 @@ export function mount(root: HTMLElement): void {
 
     // The stacked variant reveals each card on enter. Under reduced motion the
     // helper settles the class synchronously, so nothing waits on an observer.
-    reveal(step, { delay: i * 70 });
+    reveal(text, { delay: i * 70 });
+    reveal(vis, { delay: i * 70 + 40 });
   }
 
   body.appendChild(list);

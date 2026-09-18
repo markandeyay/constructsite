@@ -18,6 +18,28 @@
  * Usage:  node qa/perf.mjs [baseUrl]
  * Default baseUrl: http://localhost:4173  (the vite preview port)
  * Exit:   0 when every budget holds, non-zero otherwise.
+ *
+ * WP-15 (performance pass) extended this script in three ways. Each is a
+ * correction or an addition, never a relaxed budget. The section 12 numbers
+ * themselves are untouched.
+ *
+ *   1. LONG TASKS ARE JUDGED OVER THE SWEEP, NOT OVER THE WHOLE RUN. Section 12
+ *      reads "long tasks > 200ms DURING SCROLL SWEEP". The first version tested
+ *      every long task in the run, so page-load work was reported as a scroll
+ *      failure. Boot long tasks are still printed in full, under their own
+ *      heading, because they are real: their budget is Total Blocking Time
+ *      (section 12, measured by Lighthouse), not this one.
+ *   2. THE SWEEP STARTS WHEN THE PAGE IS QUIET. The fixed 2500ms settle
+ *      sometimes began the sweep while the one-time seqviz mount was still
+ *      running at 6x throttle, which put boot work inside the sweep window and
+ *      made the jank percentage swing between 0.55% and 4.81% run to run on an
+ *      unchanged page. The sweep now waits for a quiet period with no long task
+ *      (QUIET_MS), capped by SETTLE_MAX_MS, and prints when it started and why.
+ *   3. A SECOND PASS MEASURES CLS WITH A STEPPED SWEEP. Section 12 budgets CLS
+ *      at exactly 0.00. WP-11 proved that a smooth sweep hides a shift a
+ *      stepped sweep exposes (0.0001 against 0.0197 on the same page), and that
+ *      the entry chunk has to be delayed so the empty shells paint first or the
+ *      harness cannot see the defect class at all. Both are reproduced here.
  */
 
 import { chromium } from 'playwright';
@@ -33,6 +55,19 @@ const LONGTASK_FAIL_MS = 200;
 /* Sweep shape, section 16.1. */
 const SWEEP_MS = 8000;
 const CPU_THROTTLE = 6;
+
+/* Settle, WP-15. The sweep must measure scrolling, not the tail of boot. */
+const QUIET_MS = 1200;        /* no long task for this long means the page is quiet */
+const SETTLE_MIN_MS = 2500;   /* never sweep sooner than the original fixed settle */
+const SETTLE_MAX_MS = 20000;  /* and never wait longer than this, quiet or not */
+
+/* CLS pass, WP-15. Section 12 budgets CLS at exactly 0.00, so anything that
+   does not round to 0.00 at two decimal places is a failure. The raw value is
+   always printed, never the rounded one. */
+const CLS_FAIL_AT = 0.005;
+const CLS_ENTRY_DELAY_MS = 700; /* delay the entry chunk so the shells paint first */
+const CLS_STEP_FRACTION = 0.6;  /* stepped sweep, 60% of a viewport per step */
+const CLS_STEP_PAUSE_MS = 70;
 
 /* Exclusion windows, section 12. Both are ONE-TIME inits and each may be
    excluded AT MOST ONCE. Anything else over 200ms is a hard failure. */
@@ -126,6 +161,66 @@ const SWEEP = (durationMs) => {
   });
 };
 
+/* WP-15. Records layout shifts from the first tick. Shifts that follow user
+   input are excluded, which is what the metric itself does. */
+const INSTRUMENT_CLS = () => {
+  window.__cls = { value: 0, sources: [] };
+  try {
+    const obs = new PerformanceObserver((list) => {
+      for (const e of list.getEntries()) {
+        if (e.hadRecentInput) continue;
+        window.__cls.value += e.value;
+        for (const src of e.sources || []) {
+          const n = src.node;
+          window.__cls.sources.push({
+            value: e.value,
+            tag: n && n.tagName ? n.tagName.toLowerCase() : '?',
+            id: (n && n.id) || '',
+            cls: n ? String(n.className || '').slice(0, 70) : '',
+          });
+        }
+      }
+    });
+    obs.observe({ type: 'layout-shift', buffered: true });
+  } catch (err) {
+    window.__cls.observerError = String(err);
+  }
+};
+
+/* WP-15. A stepped sweep, top to bottom and back, which is the shape WP-11
+   measured as the one that exposes a shift a smooth sweep hides. */
+const STEPPED_SWEEP = async ({ fraction, pauseMs }) => {
+  const step = Math.max(80, Math.round(window.innerHeight * fraction));
+  const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+  const bottom = () => document.documentElement.scrollHeight;
+  for (let y = 0; y < bottom(); y += step) {
+    window.scrollTo(0, y);
+    await wait(pauseMs);
+  }
+  window.scrollTo(0, 0);
+  await wait(400);
+};
+
+/* WP-15. Wait until no long task has landed for QUIET_MS, so the sweep starts
+   against a quiet page. Returns what happened, for printing. */
+async function settle(page) {
+  const started = Date.now();
+  await page.waitForTimeout(SETTLE_MIN_MS);
+  for (;;) {
+    const waited = Date.now() - started;
+    const sinceLast = await page.evaluate(() => {
+      const tasks = (window.__qa && window.__qa.longtasks) || [];
+      if (tasks.length === 0) return Number.MAX_SAFE_INTEGER;
+      let end = 0;
+      for (const t of tasks) end = Math.max(end, t.start + t.duration);
+      return performance.now() - end;
+    });
+    if (sinceLast >= QUIET_MS) return { waitedMs: waited, quiet: true, sinceLast };
+    if (waited >= SETTLE_MAX_MS) return { waitedMs: waited, quiet: false, sinceLast };
+    await page.waitForTimeout(200);
+  }
+}
+
 function firstLine(err) {
   const s = String(err && err.message ? err.message : err);
   return s.split(String.fromCharCode(10))[0];
@@ -187,11 +282,28 @@ async function main() {
     process.exit(2);
   }
 
-  /* Let the boot settle so the sweep measures scrolling, not first paint. */
-  await page.waitForTimeout(2500);
+  /* Let the boot settle so the sweep measures scrolling, not first paint.
+     WP-15: this waits for a quiet page rather than a fixed 2500ms, because at
+     6x throttle the one-time seqviz mount can still be running at 2500ms and
+     a sweep started on top of it measures boot, not scrolling. */
+  const settled = await settle(page);
+  console.log('SETTLE');
+  console.log(
+    '  waited ' + settled.waitedMs + 'ms before sweeping; ' +
+      (settled.quiet
+        ? 'no long task for the last ' + round(settled.sinceLast) + 'ms'
+        : 'page never went quiet within the ' + SETTLE_MAX_MS + 'ms cap, swept anyway')
+  );
+  console.log('');
 
   await page.evaluate(SWEEP, SWEEP_MS);
   await page.waitForTimeout(500);
+
+  /* WP-15: the boot window, reported by main.ts's reserved region. */
+  const bootMeasure = await page.evaluate(() => {
+    const m = performance.getEntriesByName('wp15:boot')[0];
+    return m ? m.duration : null;
+  });
 
   const data = await page.evaluate(() => ({
     frames: window.__qa.frames,
@@ -205,9 +317,61 @@ async function main() {
   const scriptDuration = (metrics.metrics.find((m) => m.name === 'ScriptDuration') || { value: 0 }).value;
   const taskDuration = (metrics.metrics.find((m) => m.name === 'TaskDuration') || { value: 0 }).value;
 
+  /* ---------------------------------------------------------------------
+     CLS PASS (WP-15). A second load in its own context, with the entry chunk
+     delayed so the empty shells are guaranteed to paint before any mount()
+     runs, then a STEPPED sweep. Both conditions come from WP-11's measured
+     finding: without the delay the harness cannot see the post-paint reflow
+     class at all, and a smooth sweep read 0.0001 on a page where a stepped
+     sweep read 0.0197.
+     --------------------------------------------------------------------- */
+  const clsContext = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+  await clsContext.addInitScript(INSTRUMENT_CLS);
+  await clsContext.route('**/assets/index-*.js', async (route) => {
+    await new Promise((r) => setTimeout(r, CLS_ENTRY_DELAY_MS));
+    await route.continue();
+  });
+  const clsPage = await clsContext.newPage();
+  const clsConsoleErrors = [];
+  clsPage.on('console', (msg) => {
+    if (msg.type() === 'error') clsConsoleErrors.push(msg.text());
+  });
+  clsPage.on('pageerror', (err) => clsConsoleErrors.push(String(err && err.message ? err.message : err)));
+  const clsClient = await clsContext.newCDPSession(clsPage);
+  await clsClient.send('Emulation.setCPUThrottlingRate', { rate: CPU_THROTTLE });
+  await clsPage.goto(BASE, { waitUntil: 'load', timeout: 45000 });
+  await clsPage.waitForTimeout(4000);
+  const clsAtLoad = await clsPage.evaluate(() => window.__cls.value);
+  await clsPage.evaluate(STEPPED_SWEEP, { fraction: CLS_STEP_FRACTION, pauseMs: CLS_STEP_PAUSE_MS });
+  const cls = await clsPage.evaluate(() => ({
+    value: window.__cls.value,
+    sources: window.__cls.sources.sort((a, b) => b.value - a.value).slice(0, 5),
+    observerError: window.__cls.observerError || null,
+  }));
+  await clsContext.close();
+
   await browser.close();
 
   const failures = [];
+
+  console.log('LAYOUT SHIFT (section 12 budget: exactly 0.00)');
+  console.log('  method: entry chunk delayed ' + CLS_ENTRY_DELAY_MS + 'ms so the empty shells paint first,');
+  console.log('          then a stepped sweep at ' + CLS_STEP_FRACTION + ' viewport per step, 1440x900, 6x throttle.');
+  console.log('  CLS at load:             ' + clsAtLoad.toFixed(4));
+  console.log('  CLS after stepped sweep: ' + cls.value.toFixed(4));
+  if (cls.observerError) failures.push('layout-shift PerformanceObserver failed to attach: ' + cls.observerError);
+  if (cls.sources.length === 0) {
+    console.log('  no shift sources recorded.');
+  } else {
+    for (const src of cls.sources) {
+      console.log('    ' + src.value.toFixed(4) + '  ' + src.tag + (src.id ? '#' + src.id : '') + (src.cls ? '.' + src.cls.split(' ').join('.') : ''));
+    }
+  }
+  if (cls.value >= CLS_FAIL_AT) {
+    failures.push('CLS ' + cls.value.toFixed(4) + ' does not round to the section 12 budget of 0.00');
+  }
+  for (const e of clsConsoleErrors) failures.push('console or page error during the CLS pass: ' + e);
+  console.log('');
 
   if (data.observerError) {
     failures.push('longtask PerformanceObserver failed to attach: ' + data.observerError);
@@ -256,7 +420,12 @@ async function main() {
     console.log('    start ' + round(t.start) + 'ms   duration ' + round(t.duration) + 'ms   name ' + t.name);
   }
 
-  const over = allTasks.filter((t) => t.duration > LONGTASK_FAIL_MS);
+  /* WP-15: the section 12 budget reads "long tasks over 200ms DURING SCROLL
+     SWEEP", so only tasks overlapping the sweep window are judged here. Boot
+     tasks are printed under their own heading below and are budgeted by Total
+     Blocking Time instead. */
+  const over = sweepTasks.filter((t) => t.duration > LONGTASK_FAIL_MS);
+  const bootOver = allTasks.filter((t) => t.duration > LONGTASK_FAIL_MS && !sweepTasks.includes(t));
 
   /* Identify the two permitted one-time exclusions by POSITION and DURATION,
      and print exactly what was excluded and why. Never silent. */
@@ -327,7 +496,22 @@ async function main() {
   }
 
   console.log('');
+  console.log('BOOT LONG TASKS (before the sweep, reported not judged here)');
+  if (bootOver.length === 0) {
+    console.log('  none over ' + LONGTASK_FAIL_MS + 'ms.');
+  } else {
+    for (const t of bootOver) {
+      console.log('  ' + round(t.duration) + 'ms at ' + round(t.start) + 'ms');
+    }
+    console.log('  These are page-load work, not scroll work. Their section 12 budget is');
+    console.log('  Total Blocking Time under 300ms, which Lighthouse measures.');
+  }
+
+  console.log('');
   console.log('SCRIPT TIME');
+  if (bootMeasure !== null) {
+    console.log('  synchronous boot (wp15:boot, time origin to the end of mount + matchMedia): ' + round(bootMeasure) + 'ms');
+  }
   console.log('  total script time (CDP ScriptDuration): ' + round(scriptDuration * 1000) + 'ms');
   console.log('  total task time  (CDP TaskDuration):    ' + round(taskDuration * 1000) + 'ms');
 
