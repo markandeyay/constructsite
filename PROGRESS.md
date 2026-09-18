@@ -28,6 +28,11 @@ WP-09g CLAIMED by WP-09g at 2026-09-18T02:40:00Z
 
 WP-09i CLAIMED by WP-09i at 2026-09-18T03:05:00Z
 
+WP-10 CLAIMED by WP-10 at 2026-09-18T02:12:43Z
+WP-11 CLAIMED by WP-11 at 2026-09-18T04:05:00Z
+
+WP-13 CLAIMED by WP-13 at 2026-09-18T02:13:41Z
+
 ## Done
 (none yet)
 WP-01 DONE by WP-01 at 2026-09-18T01:22:17Z
@@ -56,6 +61,10 @@ WP-09i DONE by WP-09i at 2026-09-18T03:40:00Z
 WP-09f DONE by WP-09f at 2026-09-18T01:59:47Z
 
 WP-09a DONE by WP-09a at 2026-09-18T02:10:09Z
+
+WP-10 DONE by WP-10 at 2026-09-18T02:22:49Z
+
+WP-13 DONE by WP-13 at 2026-09-18T02:23:31Z
 
 ## Blocked
 (none yet)
@@ -103,3 +112,12 @@ WP-09g -> WP-10: src/sections/traction.ts exports mount only. Section 07 has not
 - ORCHESTRATOR EXCEPTION granted to WP-11: WP-11 may edit other packages' sections.css blocks, but ONLY to remove or neutralise padding, margin and display overrides on a .sec-* root that cause post-paint reflow, and only after measuring CLS. All other content of those blocks stays untouched. This exception exists because the defect is cross-cutting, its owners have finished, and the responsive pass is the package that already owns cross-section layout.
 - G1 RISK found by WP-09a: at 1440x900 the hero copy column's bottom edge lands at y=1044, so the two buttons and the status line sit just below the fold. Spec goal G1 is measured by "hero copy readable without scrolling, at 375px and 1440px", so this misses a stated goal. The headline runs six lines at that width. Nothing is stranded invisible, because the hero load beats are clock driven. Assigned to WP-11 to resolve within the fixed --t-hero token and the fixed 55/45 split.
 - favicon.svg does not exist, so index.html's icon link 404s and intermittently trips the section 16.6 zero-console-errors gate. WP-13 owns that file under contract C8 and must ship it.
+- ORCHESTRATOR CHANGE to src/styles/base.css, Instrument Serif @font-face only. Switched from the width-matched overrides (size-adjust 135.09%) to Georgia's own measured metrics (size-adjust 100%, ascent-override 91.70%, descent-override 21.90%), which are the exact alternative values WP-02 measured and offered in its own spec challenge. Reason, found by looking at the deployed page rather than at a number: Instrument Serif is a condensed display face, so matching it to Georgia's advance width inflated the rendered headline by about 35 percent. On the live page that produced an 84px headline running SIX lines, 582px tall, whose box started at y=156 while the kicker ended at y=169, so the headline visibly overlapped the kicker. font-display: optional never swaps, so matching the fallback's metrics buys no layout stability for this face and CLS stays 0.00 either way. Body and mono keep their measured width-matched values, which are correct for them.
+- Orchestrator visual review of the DEPLOYED page at 1536x695, done by looking rather than by reading numbers. Findings: (1) the hero headline rendered at 84px across SIX lines, 582px tall in a 572px column, with the hero bottom at y=1101 against a 695px viewport, so goal G1 fails; root cause was the Instrument Serif width-matched size-adjust, now fixed. (2) The headline box started at y=156 while the kicker ended at y=169, so they visibly overlapped; reopened with WP-09a. (3) The plasmid map renders correctly and looks right: muted feature arcs, mono labels, construct name and length, no neon and no glow, so goal G2 is met. (4) Section 02 reads exactly as intended.
+- Note for WP-14: on the deployed page, querying the hero map SVG's aria-label returned an EMPTY string, although WP-06 reported shipping a real worded label. It may sit on a wrapper rather than the svg element. Spec section 13.2 requires the plasmid map to carry role="img" and a real aria-label describing the construct in words. Verify this on the BUILT page and file a cross-WP request to WP-06 if it is genuinely missing.
+- Method note for everyone: the hero map mounts in requestIdleCallback, so a screenshot taken immediately after load shows an empty map container. That is not a defect. Wait for the map to mount before judging or capturing the hero.
+- Orchestrator decision on WP-10's two flagged items. (1) The single extra import line beside the existing motion import is ACCEPTED: an ES import cannot live inside a function body and the reserved markers sit inside boot(), so there was no alternative. No existing line was edited. (2) The opt-in debug global behind the st-debug query string is KEPT THROUGH WAVE 4 ON PURPOSE, because WP-16 explicitly asked for ScrollTrigger to be reachable so the reduced-motion pin and scrub check can be exact rather than falling back to a DOM scan for pin spacers. WP-14 and WP-15 should use it. It must be REMOVED at final hardening before the production ship, and WP-17 must verify it is gone from the shipped bundle.
+- Method note worth reusing, from WP-10: driving scroll with window.scrollTo produces a clean-looking but WORTHLESS result while Lenis is installed, because Lenis reverts a programmatic jump on the next frame and scrollY never leaves 0. Any package measuring scroll behaviour must drive it with real wheel events. The orchestrator hit the same trap during visual review.
+- Note for any package asserting on ScrollTrigger positions: the absolute pin START drifts about 100px run to run because the plasmid map mounts in an idle callback and fonts settle asynchronously. The pin DISTANCE is 4500 on a 900px viewport in every run. Assert on distance, never on absolute start.
+- ACTION ITEM tied to the demo data placeholder, raised by WP-13: public/og-card.png is a real render of the live hero, so it currently shows WP-06's placeholder construct pCON-DEMO-01. That is correct today. When a real construct export replaces demo-plasmid.json, the social card MUST be regenerated or it will advertise a construct the site no longer shows. Exact reproduction parameters are in progress/WP-13.md.
+- WP-13 did not need its contract C8 carve-out: WP-01's head already matched spec section 14 verbatim and every string already matched copy.meta, so index.html was left unmodified. The built dist carries absolute og:image and og:url and contains no remaining SITE_ORIGIN token anywhere.

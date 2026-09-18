@@ -40,10 +40,17 @@
   font-weight: 400;
   font-style: normal;
   font-display: optional;
-  /* Measured against Georgia, 'Times New Roman', serif. */
-  size-adjust: 135.09%;
-  ascent-override: 67.88%;
-  descent-override: 16.21%;
+  /* Georgia's own measured metrics, so the display face renders at its design
+     proportions. The width-matched alternative (size-adjust 135.09%,
+     ascent-override 67.88%, descent-override 16.21%) is recorded in
+     progress/WP-02.md. It is deliberately NOT used: Instrument Serif is a
+     condensed face, so scaling it to Georgia's advance width inflated the
+     headline by about 35 percent, pushed it to six lines and overlapped the
+     kicker. font-display: optional never swaps, so nothing is gained by
+     matching the fallback's metrics here and CLS stays 0.00 either way. */
+  size-adjust: 100%;
+  ascent-override: 91.70%;
+  descent-override: 21.90%;
   line-gap-override: 0%;
 }
 

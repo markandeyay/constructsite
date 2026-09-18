@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32" role="img" aria-label="Construct">
+  <title>Construct</title>
+  <!-- A circular construct map: one backbone ring, three feature arcs.
+       Feature colours are the spec 5.2 feature tokens written as hex
+       literals, because an SVG file cannot resolve CSS custom properties. -->
+  <g fill="none" transform="rotate(-90 16 16)">
+    <circle cx="16" cy="16" r="11" stroke="#C9C5BD" stroke-width="1.5" />
+    <circle cx="16" cy="16" r="11" stroke="#2E6F95" stroke-width="4"
+            stroke-dasharray="20.73 48.38" stroke-dashoffset="0" />
+    <circle cx="16" cy="16" r="11" stroke="#1F6B4A" stroke-width="4"
+            stroke-dasharray="17.97 51.14" stroke-dashoffset="-25.34" />
+    <circle cx="16" cy="16" r="11" stroke="#8A5E12" stroke-width="4"
+            stroke-dasharray="16.59 52.52" stroke-dashoffset="-47.92" />
+  </g>
+</svg>
