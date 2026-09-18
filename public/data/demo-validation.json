@@ -1,0 +1,14 @@
+{
+  "_TODO": "PLACEHOLDER DATA. This validation report is NOT an export from any real design run and it describes no real product output. It exists only so the section has something of the right shape to render. Replace this whole file with a real validation export, then delete this key. While this key is present the site logs a console warning on every load. Row order matches copy.validation.rows; status is PASS or WARN; reason is a short data string shown only on a WARN row.",
+  "construct": "pCON-DEMO-01",
+  "checks": [
+    { "id": "restriction-site-conflicts", "status": "PASS" },
+    { "id": "repeat-synthesis-instability", "status": "PASS" },
+    { "id": "codon-usage-fit", "status": "PASS" },
+    {
+      "id": "regulatory-compatibility",
+      "status": "WARN",
+      "reason": "intentional dual-promoter architecture"
+    }
+  ]
+}

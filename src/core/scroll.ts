@@ -184,10 +184,26 @@ export function onScroll(fn: (s: ScrollState) => void): () => void {
   };
 }
 
+function px(value: string): number {
+  const n = Number.parseFloat(value);
+  return Number.isNaN(n) ? 0 : n;
+}
+
 /**
  * Anchor navigation, spec section 7.0. With Lenis installed the jump goes
  * through Lenis so it does not fight the smoothing. Without it, fall through to
- * native behaviour, which `scroll-margin-top: 80px` already accounts for.
+ * native behaviour.
+ *
+ * THE TWO DRIVERS MUST LAND IN THE SAME PLACE. Lenis resolves an element target
+ * as `rect.top + scroll - scrollMarginTop - scrollPaddingTop` before it applies
+ * `options.offset`. Every section shell carries `scroll-margin-top: 80px`
+ * (spec section 4.0), so handing Lenis the prescribed `offset: -80` unchanged
+ * applied that 80px twice and landed the target 160px down, against 80px on the
+ * native path. Both values clear the 64px header, so nothing looked broken, but
+ * the drivers were distinguishable, which this module's contract forbids.
+ *
+ * The fix is here, not at the call site: cancel out what Lenis is about to
+ * subtract, so `offset` means exactly the same thing on both paths.
  */
 export function scrollToTarget(target: Element | string, offset = -80): void {
   const el = typeof target === 'string' ? document.querySelector(target) : target;
@@ -197,7 +213,15 @@ export function scrollToTarget(target: Element | string, offset = -80): void {
     const arg: string | HTMLElement | null =
       el instanceof HTMLElement ? el : typeof target === 'string' ? target : null;
     if (!arg) return;
-    lenis.scrollTo(arg, { offset, duration: 1.1 });
+
+    let adjusted = offset;
+    if (el) {
+      const targetStyle = window.getComputedStyle(el);
+      const rootStyle = window.getComputedStyle(document.documentElement);
+      adjusted += px(targetStyle.scrollMarginTop) + px(rootStyle.scrollPaddingTop);
+    }
+
+    lenis.scrollTo(arg, { offset: adjusted, duration: 1.1 });
     return;
   }
 

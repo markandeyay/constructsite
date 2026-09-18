@@ -16,14 +16,22 @@
    size-adjust / ascent-override / descent-override are MEASURED, not copied
    from the illustrative values in the spec. Method and raw numbers are in
    progress/WP-02.md. In short: each webfont and its fallback stack were
-   rendered into a canvas at 1000px in headless Chromium, and
+   rendered in headless Chromium at 1000px, and
 
      size-adjust      = fallbackAdvanceWidth / webfontAdvanceWidth
      ascent-override  = (fallbackAscent  / em) / size-adjust
      descent-override = (fallbackDescent / em) / size-adjust
 
-   so that the adjusted webfont and the fallback occupy the same advance width
-   and the same line box.
+   seeded from a canvas measurement, then refined against real DOM layout
+   (which is what decides line breaks, and which differs from canvas because
+   the body sets text-rendering: optimizeLegibility). Verified end state:
+   every family matches its fallback to within 0.01% of advance width and
+   exactly 0% of line box height, so a cached load and an uncached load lay
+   out identically.
+
+   These are Windows/Chromium fallback metrics: Georgia, Segoe UI for
+   -apple-system/system-ui, and Consolas for ui-monospace. See progress/WP-02.md
+   for why that is the right target here and what it costs elsewhere.
 ---------------------------------------------------------------------------- */
 
 @font-face {
@@ -33,9 +41,9 @@
   font-style: normal;
   font-display: optional;
   /* Measured against Georgia, 'Times New Roman', serif. */
-  size-adjust: 132.73%;
-  ascent-override: 69.09%;
-  descent-override: 16.50%;
+  size-adjust: 135.09%;
+  ascent-override: 67.88%;
+  descent-override: 16.21%;
   line-gap-override: 0%;
 }
 
@@ -46,9 +54,9 @@
   font-style: normal;
   font-display: optional;
   /* Measured against -apple-system, system-ui, sans-serif. */
-  size-adjust: 92.56%;
-  ascent-override: 116.58%;
-  descent-override: 27.12%;
+  size-adjust: 92.08%;
+  ascent-override: 117.19%;
+  descent-override: 27.26%;
   line-gap-override: 0%;
 }
 
@@ -59,9 +67,9 @@
   font-style: normal;
   font-display: optional;
   /* Measured against -apple-system, system-ui, sans-serif at weight 600. */
-  size-adjust: 93.14%;
-  ascent-override: 115.85%;
-  descent-override: 26.95%;
+  size-adjust: 92.82%;
+  ascent-override: 116.24%;
+  descent-override: 27.04%;
   line-gap-override: 0%;
 }
 
@@ -79,20 +87,12 @@
 }
 
 /* ----------------------------------------------------------------------------
-   2. FONT STACK TOKENS
+   2. RESET
 
-   These live here rather than in tokens.css because they name the families
-   declared immediately above, and the two must not drift.
----------------------------------------------------------------------------- */
-
-:root {
-  --font-display: 'Instrument Serif', Georgia, 'Times New Roman', serif;
-  --font-body:    'Inter', -apple-system, system-ui, sans-serif;
-  --font-mono:    'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
-}
-
-/* ----------------------------------------------------------------------------
-   3. RESET
+   The three font stack tokens (--font-display, --font-body, --font-mono) live
+   in tokens.css, next to every other custom property. They name the families
+   declared immediately above and the two must not drift: changing a
+   font-family here means changing that token in the same commit.
 ---------------------------------------------------------------------------- */
 
 *,
@@ -169,7 +169,7 @@ hr {
 }
 
 /* ----------------------------------------------------------------------------
-   4. TYPOGRAPHY DEFAULTS (spec section 5.3)
+   3. TYPOGRAPHY DEFAULTS (spec section 5.3)
 
    Line height: 1.65 body, 1.15 display, 1.5 mono.
    Never justify. Left-aligned, ragged right.
@@ -283,7 +283,7 @@ b {
 }
 
 /* ----------------------------------------------------------------------------
-   5. FOCUS AND SELECTION
+   4. FOCUS AND SELECTION
 ---------------------------------------------------------------------------- */
 
 :focus-visible {
@@ -301,7 +301,7 @@ b {
 }
 
 /* ----------------------------------------------------------------------------
-   6. ANCHOR TARGETS (spec section 4.0)
+   5. ANCHOR TARGETS (spec section 4.0)
 
    Every section shell clears the fixed 64px header.
 ---------------------------------------------------------------------------- */
@@ -311,7 +311,7 @@ section[id] {
 }
 
 /* ----------------------------------------------------------------------------
-   7. REVEAL PRIMITIVES (BUILD_CONTRACT C5)
+   6. REVEAL PRIMITIVES (BUILD_CONTRACT C5)
 
    CSS lives here and is owned by WP-02. The .is-revealed class is toggled by
    core/observe.ts (WP-03). The .no-motion class is set on <html> by
@@ -345,7 +345,7 @@ section[id] {
 }
 
 /* ----------------------------------------------------------------------------
-   8. REDUCED MOTION (spec section 13.1)
+   7. REDUCED MOTION (spec section 13.1)
 
    The media query is the belt; the .no-motion class above is the braces.
    Both exist because the class also gates JS behavior, and the media query

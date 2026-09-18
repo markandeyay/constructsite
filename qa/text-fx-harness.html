@@ -1,0 +1,239 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>WP-08 text FX harness</title>
+
+    <!-- The real stylesheets, in the real order, so the harness exercises the
+         real cascade rather than a copy of it. responsive.css is omitted: it is
+         empty until WP-11 and nothing here depends on it. -->
+    <link rel="stylesheet" href="/src/styles/tokens.css" />
+    <link rel="stylesheet" href="/src/styles/base.css" />
+    <link rel="stylesheet" href="/src/styles/layout.css" />
+    <link rel="stylesheet" href="/src/styles/sections.css" />
+
+    <style>
+      /* Harness chrome only. Nothing here is shipped. */
+      body {
+        margin: 0;
+        padding: 0 24px 40px;
+      }
+      .h-panel {
+        position: fixed;
+        top: 8px;
+        right: 8px;
+        z-index: 10;
+        width: 300px;
+        padding: 10px 12px;
+        background: var(--card);
+        border: 1px solid var(--rule);
+        font-family: var(--font-mono);
+        font-size: 11px;
+        line-height: 1.6;
+        white-space: pre-wrap;
+      }
+      .h-spacer {
+        height: 140vh;
+      }
+      .h-block {
+        max-width: 760px;
+        padding-block: 24px;
+      }
+      .h-label {
+        font-family: var(--font-mono);
+        font-size: 11px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--ink-faint);
+      }
+      .h-hero {
+        font-family: var(--font-display);
+        font-size: clamp(2.75rem, 6vw, 5.25rem);
+        line-height: 1.15;
+        margin: 8px 0 0;
+      }
+      .h-title {
+        font-family: var(--font-display);
+        font-size: clamp(2rem, 4vw, 3.25rem);
+        line-height: 1.15;
+        margin: 8px 0 0;
+      }
+      .h-lede {
+        font-size: 1.25rem;
+        line-height: 1.65;
+        max-width: 34em;
+        color: var(--ink-muted);
+        margin: 16px 0 0;
+      }
+      .h-num {
+        font-family: var(--font-mono);
+        font-size: 3rem;
+      }
+    </style>
+  </head>
+
+  <body>
+    <pre class="h-panel" id="panel">booting</pre>
+
+    <div class="h-block">
+      <p class="h-label">04 counters</p>
+      <span class="h-num" id="count-a"></span>
+      <span class="h-num" id="count-b"></span>
+    </div>
+
+    <div class="h-block">
+      <p class="h-label">01 hero h1, 45ms stagger, 150ms delay, words</p>
+      <h1 class="h-hero" id="hero-h1">
+        Describe what you want to build. Get a design you can order.
+      </h1>
+      <p class="h-lede" id="hero-lede">
+        Construct turns plain-English intent into validated, ready-to-build
+        genetic designs. Work that takes an expert days now takes minutes.
+      </p>
+    </div>
+
+    <div class="h-block">
+      <p class="h-label">02 glyph split, accessibility only, no reveal</p>
+      <p class="h-title" id="glyph">Checked by rules, not guesses.</p>
+    </div>
+
+    <div class="h-block">
+      <p class="h-label">03 idempotency probe, split called three times</p>
+      <p class="h-title" id="idem">Design is the bottleneck.</p>
+    </div>
+
+    <div class="h-spacer"></div>
+
+    <div class="h-block">
+      <p class="h-label">05 section title below the fold, 40ms stagger</p>
+      <h2 class="h-title" id="late-title">From a sentence to a sequence.</h2>
+    </div>
+
+    <div class="h-spacer"></div>
+
+    <div class="h-block">
+      <p class="h-label">06 counter below the fold</p>
+      <span class="h-num" id="count-c"></span>
+    </div>
+
+    <div class="h-spacer"></div>
+
+    <script type="module">
+      import { initMotion, prefersReducedMotion } from '/src/core/motion.ts';
+      import { initScroll } from '/src/core/scroll.ts';
+      import { splitWords, splitChars, revealWords } from '/src/fx/splitText.ts';
+      import { countUp } from '/src/fx/counter.ts';
+
+      const errors = [];
+      window.addEventListener('error', (e) => errors.push('error: ' + e.message));
+      window.addEventListener('unhandledrejection', (e) =>
+        errors.push('rejection: ' + String(e.reason)),
+      );
+
+      const HERO_H1 = document.getElementById('hero-h1').textContent
+        .replace(/\s+/g, ' ')
+        .trim();
+      const GLYPH_TEXT = document.getElementById('glyph').textContent
+        .replace(/\s+/g, ' ')
+        .trim();
+
+      initMotion();
+      initScroll();
+
+      // 01 hero beats, spec section 7.1.
+      revealWords(document.getElementById('hero-h1'), { staggerMs: 45, delayMs: 150 });
+      revealWords(document.getElementById('hero-lede'), { staggerMs: 18, delayMs: 550 });
+
+      // 02 glyph split, no reveal. Proves the accessible name survives a split
+      // that would otherwise be announced one letter at a time.
+      const glyphs = splitChars(document.getElementById('glyph'));
+
+      // 03 idempotency. Three calls, two modes, one final structure.
+      const idem = document.getElementById('idem');
+      const first = splitWords(idem).length;
+      const second = splitWords(idem).length;
+      const third = splitChars(idem).length;
+      const fourth = splitWords(idem).length;
+
+      // 05 section title, spec section 5.5 default stagger.
+      revealWords(document.getElementById('late-title'), { staggerMs: 40 });
+
+      // 04 and 06 counters. Every number here is harness data, not site copy.
+      countUp(document.getElementById('count-a'), 88);
+      countUp(document.getElementById('count-b'), 5412, { suffix: ' bp' });
+      countUp(document.getElementById('count-c'), 36, { durationMs: 1200 });
+
+      function audit() {
+        const inners = Array.from(document.querySelectorAll('.fx-split__inner'));
+        let atZero = 0;
+        let settled = 0;
+        for (const el of inners) {
+          const cs = getComputedStyle(el);
+          if (parseFloat(cs.opacity) < 0.999) atZero += 1;
+          else settled += 1;
+        }
+
+        // The will-change hint is managed by core/observe.ts on the element it
+        // was handed, which is the clip box. Count the hint wherever it could
+        // possibly be, so a leak cannot hide in the layer we did not check.
+        let leftoverWillChange = 0;
+        for (const el of document.querySelectorAll('.fx-split, .fx-split__clip, .fx-split__inner')) {
+          if (el.style.willChange !== '') leftoverWillChange += 1;
+        }
+
+        const heroVis = document.querySelector('#hero-h1 .fx-split__vis').textContent;
+        const heroSr = document.querySelector('#hero-h1 .fx-split__sr').textContent;
+        const glyphVis = document.querySelector('#glyph .fx-split__vis').textContent;
+        const glyphSr = document.querySelector('#glyph .fx-split__sr').textContent;
+
+        const result = {
+          reduced: prefersReducedMotion(),
+          noMotionClass: document.documentElement.classList.contains('no-motion'),
+          inners: inners.length,
+          settled,
+          atZero,
+          leftoverWillChange,
+          glyphCount: glyphs.length,
+          idem: [first, second, third, fourth],
+          idemInners: idem.querySelectorAll('.fx-split__inner').length,
+          idemSrNodes: idem.querySelectorAll('.fx-split__sr').length,
+          idemVisNodes: idem.querySelectorAll('.fx-split__vis').length,
+          heroCopyMatches: heroVis.replace(/\s+/g, ' ').trim() === HERO_H1,
+          heroSrMatches: heroSr === HERO_H1,
+          glyphCopyMatches: glyphVis.replace(/\s+/g, ' ').trim() === GLYPH_TEXT,
+          glyphSrMatches: glyphSr === GLYPH_TEXT,
+          srUserSelect: getComputedStyle(
+            document.querySelector('#hero-h1 .fx-split__sr'),
+          ).userSelect,
+          countA: document.getElementById('count-a').textContent,
+          countB: document.getElementById('count-b').textContent,
+          countC: document.getElementById('count-c').textContent,
+          errors: errors.slice(),
+        };
+        result.pass =
+          result.leftoverWillChange === 0 &&
+          result.errors.length === 0 &&
+          result.heroCopyMatches &&
+          result.heroSrMatches &&
+          result.glyphCopyMatches &&
+          result.glyphSrMatches &&
+          result.idemInners === result.idem[3] &&
+          result.idemSrNodes === 1 &&
+          result.idemVisNodes === 1 &&
+          (!result.reduced || result.atZero === 0);
+        return result;
+      }
+
+      window.__audit = audit;
+
+      const panel = document.getElementById('panel');
+      function paint() {
+        const a = audit();
+        panel.textContent = JSON.stringify(a, null, 1);
+        requestAnimationFrame(paint);
+      }
+      paint();
+    </script>
+  </body>
+</html>

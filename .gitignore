@@ -9,3 +9,6 @@ qa/shots/
 # carry naming that must not ship. See PROGRESS.md orchestrator decisions.
 CONSTRUCT_WEBSITE_SYSTEM_DESIGN.md
 BUILD_CONTRACT.md
+
+.vercel
+.env*

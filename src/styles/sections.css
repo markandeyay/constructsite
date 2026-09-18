@@ -40,3 +40,1388 @@
 
    Nothing else lives in this file. WP-05 adds no rule here.
    ============================================================ */
+
+/* ==== WP-07: 3D viewer ==== */
+/* Owned by WP-07 (src/fx/viewer3d.ts). The section shell around it is
+   WP-09f's. Everything here is prefixed .fx-viewer3d. Max specificity
+   (0,2,0), no !important. */
+
+.fx-viewer3d {
+  position: relative;
+  display: block;
+  width: 100%;
+  /* Reserved box: the stage and the still share this aspect, so neither the
+     canvas nor the image can shift layout when it arrives. CLS budget is
+     0.00 (spec section 12). */
+  aspect-ratio: 4 / 3;
+  overflow: hidden;
+  background-color: var(--paper-sunk);
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+}
+
+.fx-viewer3d__stage {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  /* 3Dmol positions its canvas inside this box and handles drag itself. */
+  touch-action: pan-y;
+  cursor: grab;
+}
+
+.fx-viewer3d__stage canvas {
+  display: block;
+}
+
+.fx-viewer3d__still {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  background-color: var(--paper-sunk);
+}
+/* ==== /WP-07 ==== */
+
+/* ==== WP-12: Contact ==== */
+/* Section 08. Shared form controls live in components.css and are consumed
+   as they are: nothing here restyles .form, .field or .field__control. */
+
+.sec-contact__intro {
+  margin-block-start: var(--sp-8);
+}
+
+.sec-contact .form {
+  margin-block-start: var(--sp-12);
+}
+
+/* Button and status line sit together beneath the fields. The status line
+   keeps its reserved height so nothing shifts when it fills. */
+.sec-contact__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-4) var(--sp-6);
+  margin-block-start: var(--sp-2);
+}
+
+.sec-contact .form__status {
+  margin: 0;
+  min-width: 0;
+}
+
+/* The in-flight ellipsis. Opacity only, so the announced text never changes
+   while the dots move. */
+.sec-contact__dots {
+  display: inline-block;
+  margin-inline-start: 0.1em;
+}
+
+.sec-contact__dot {
+  opacity: 0.2;
+  animation: sec-contact-dot 1200ms steps(1, end) infinite;
+}
+
+.sec-contact__dot:nth-child(2) {
+  animation-delay: 200ms;
+}
+
+.sec-contact__dot:nth-child(3) {
+  animation-delay: 400ms;
+}
+
+@keyframes sec-contact-dot {
+  0% { opacity: 0.2; }
+  25% { opacity: 1; }
+  75% { opacity: 1; }
+  100% { opacity: 0.2; }
+}
+
+.no-motion .sec-contact__dot {
+  opacity: 1;
+  animation: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sec-contact__dot {
+    opacity: 1;
+    animation: none;
+  }
+}
+/* ==== /WP-12 ==== */
+
+/* ==== WP-08: Text FX ==== */
+/* Owns .fx-split* and .fx-counter*. Consumed by fx/splitText.ts and
+   fx/counter.ts. Max specificity (0,2,0). No !important. No token is
+   defined here. Order inside this block is load bearing: read note 3. */
+
+/* 1. The accessible layer. The original, unsplit string, visually gone but
+      present in the accessibility tree, so the host's accessible name is one
+      continuous string rather than a list of fragments. user-select: none
+      keeps it out of the clipboard, so a copy takes the visual layer instead
+      and gets normal words with normal spaces. Not clip: rect, which some
+      engines still collapse to nothing for assistive technology. */
+.fx-split__sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  border: 0;
+  clip-path: inset(50%);
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* 2. The visual layer. aria-hidden in the markup, so none of the fragments
+      below is ever announced. */
+.fx-split__vis {
+  display: inline;
+}
+
+/* A glyph split keeps each word on one line. */
+.fx-split__group {
+  display: inline-block;
+  white-space: nowrap;
+}
+
+/* The clip mask the word rises out of. The padding plus the equal negative
+   margin gives descenders somewhere to live without changing the line box. */
+.fx-split__clip {
+  display: inline-block;
+  overflow: hidden;
+  padding-bottom: 0.18em;
+  margin-bottom: -0.18em;
+  line-height: inherit;
+}
+
+/* 3. THE SETTLED STATE IS THE DEFAULT. Splitting text never hides it. The
+      hidden state below needs .fx-split--armed, which fx/splitText.ts adds at
+      exactly one place, inside a branch guarded on reduced motion being off.
+      An element that was merely split, or that was split before script died,
+      is fully visible. */
+.fx-split__inner {
+  display: inline-block;
+  line-height: inherit;
+}
+
+/* Armed: below the mask and invisible. (0,2,0). */
+.fx-split--armed .fx-split__inner {
+  opacity: 0;
+  transform: translateY(115%);
+}
+
+/* Settled. .is-revealed lands on the CLIP, never on the inner: the inner is
+   translated out of an overflow-hidden parent while armed, so an
+   IntersectionObserver aimed at it computes an empty intersection rect and it
+   would never fire. (0,2,0), and it follows the armed rule, so it wins on
+   order. It also has to outrank the global .is-revealed at (0,1,0). */
+.is-revealed .fx-split__inner {
+  opacity: 1;
+  transform: translateY(0);
+  transition:
+    opacity 600ms var(--ez-out-expo),
+    transform 600ms var(--ez-out-expo);
+}
+
+/* Reduced motion, belt and braces. (0,2,0) and last, so it beats both rules
+   above whatever classes are on the host. This covers the one case the JS
+   guard cannot: a user turning reduced motion on after an element was armed
+   but before it was revealed. Nothing in this feature can then sit at
+   opacity 0 (spec section 19). */
+.no-motion .fx-split__inner {
+  opacity: 1;
+  transform: translateY(0);
+  transition: none;
+}
+
+/* 4. Counter. Tabular figures so the box does not jitter as digits change
+      (spec section 5.3 and 7.2). Ships unused: BUILD_CONTRACT A6 Q3 deletes
+      the section 02 stat row, because no verified statistic exists. */
+.fx-counter {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum' 1;
+}
+
+.fx-counter__value {
+  font-variant-numeric: tabular-nums;
+}
+
+.fx-counter__suffix {
+  font-variant-numeric: normal;
+}
+
+/* The media query is the belt, the .no-motion class above is the braces. It
+   repeats the armed selector so it matches the armed rule at (0,2,0) and wins
+   on order, which a bare .fx-split__inner at (0,1,0) would not. */
+@media (prefers-reduced-motion: reduce) {
+  .fx-split--armed .fx-split__inner,
+  .fx-split__vis .fx-split__inner {
+    opacity: 1;
+    transform: translateY(0);
+    transition: none;
+  }
+}
+/* ==== /WP-08 ==== */
+
+/* ==== WP-06: Plasmid map ==== */
+/* Spec section 8. The rendered SVG belongs to seqviz; everything below either
+   styles WP-06's own overlay elements or toggles a class that WP-06's
+   post-processing pass put onto a seqviz node. No seqviz internal is styled
+   without a WP-06 class on it.
+
+   Class contract for the section that hosts the map (currently WP-09a, hero):
+   put class="fx-plasmid" on the container IN THE MARKUP, before mountPlasmid
+   runs. The aspect-ratio box below is what reserves the layout space, and the
+   CLS budget in spec section 12 is exactly 0.00. */
+
+.fx-plasmid {
+  position: relative;
+  display: block;
+  inline-size: 100%;
+  max-inline-size: 560px;
+  aspect-ratio: 1;           /* reserved box: nothing shifts when the map mounts */
+  margin-inline: auto;
+  contain: layout;
+}
+
+.fx-plasmid--mini {
+  max-inline-size: 320px;
+}
+
+.fx-plasmid__canvas {
+  position: absolute;
+  inset: 0;
+  inline-size: 100%;
+  block-size: 100%;
+}
+
+/* --- The backbone overlay -------------------------------------------------
+   WP-06's own circle, appended into the rendered SVG and matched to the ring's
+   radius and centre. seqviz composes its ring from several rotated paths and
+   exposes no stable selector, so getTotalLength on "the backbone" has nothing
+   reliable to grab. This element is removed once it has drawn, revealing
+   seqviz's real ring underneath. */
+
+.fx-plasmid__backbone {
+  fill: none;
+  stroke: var(--ink-faint);
+  stroke-width: 1;
+  stroke-dasharray: var(--fx-len, 0);
+  stroke-dashoffset: var(--fx-len, 0);
+}
+
+.fx-plasmid--drawing .fx-plasmid__backbone {
+  stroke-dashoffset: 0;
+  transition: stroke-dashoffset var(--fx-dur, 1400ms) var(--ez-out-expo);
+}
+
+/* While the overlay draws, seqviz's real ring and its index ticks are held
+   back so the two are never visible at once. They come in with the arcs. */
+.fx-plasmid--armed .la-vz-index-line,
+.fx-plasmid--armed .la-vz-index-tick,
+.fx-plasmid--armed .la-vz-index-tick-label,
+.fx-plasmid--armed .la-vz-circular-bps {
+  opacity: 0;
+}
+
+.fx-plasmid--arcs-in .la-vz-index-line,
+.fx-plasmid--arcs-in .la-vz-index-tick,
+.fx-plasmid--arcs-in .la-vz-index-tick-label,
+.fx-plasmid--arcs-in .la-vz-circular-bps {
+  opacity: 1;
+  transition: opacity var(--dur-reveal) var(--ez-out-expo) var(--fx-ring-delay, 700ms);
+}
+
+/* --- Feature arcs ---------------------------------------------------------
+   The rotation is restated in CSS because a CSS transform outranks the SVG
+   transform presentation attribute, so the scale has to compose with the
+   rotation rather than replace it. --fx-rot, --fx-delay and --fx-dur are set
+   per element by fx/plasmid.ts. */
+
+.fx-plasmid--armed .fx-plasmid__arc {
+  opacity: 0;
+  transform: rotate(var(--fx-rot, 0deg)) scale(0.96);
+}
+
+.fx-plasmid--arcs-in .fx-plasmid__arc {
+  opacity: 1;
+  transform: rotate(var(--fx-rot, 0deg)) scale(1);
+  transition:
+    opacity var(--fx-dur, 600ms) var(--ez-out-expo) var(--fx-delay, 0ms),
+    transform var(--fx-dur, 600ms) var(--ez-out-expo) var(--fx-delay, 0ms);
+}
+
+/* --- Labels --------------------------------------------------------------- */
+
+.fx-plasmid--armed .fx-plasmid__label {
+  opacity: 0;
+}
+
+.fx-plasmid--labels-in .fx-plasmid__label {
+  opacity: 1;
+  transition: opacity var(--fx-dur, 400ms) var(--ez-out-expo) var(--fx-delay, 0ms);
+}
+
+/* --- Interaction, spec section 8.5 ---------------------------------------- */
+
+.fx-plasmid__arc:hover {
+  filter: brightness(0.94);
+}
+
+.fx-plasmid__arc--active {
+  filter: brightness(0.94);
+}
+
+.fx-plasmid__tip {
+  position: absolute;
+  z-index: 2;
+  transform: translate(-50%, calc(-100% - var(--sp-2)));
+  padding: var(--sp-1) var(--sp-2);
+  border: 1px solid var(--rule);
+  border-radius: 2px;
+  background: var(--card);
+  box-shadow: var(--shadow-sm);
+  color: var(--ink);
+  font-family: var(--font-mono);
+  font-size: var(--t-micro);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.5;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity var(--dur-micro) var(--ez-out-quart);
+}
+
+.fx-plasmid__tip--on {
+  opacity: 1;
+}
+
+/* --- Reduced motion, spec section 13.1 and section 19 ---------------------
+   fx/plasmid.ts never adds the armed class when reduced motion is on, so the
+   map is already fully drawn. These two rules are the structural backstop:
+   with reduced motion on, nothing this block owns can sit at opacity 0, no
+   matter which class ended up on the container. */
+
+.no-motion .fx-plasmid__arc,
+.no-motion .fx-plasmid__label {
+  opacity: 1;
+  transition: none;
+}
+
+/* No transform is written here on purpose. Under reduced motion the arcs never
+   receive a --fx-rot value, so a rotate(0deg) would outrank seqviz's transform
+   attribute and collapse every arc to zero degrees. Opacity only. */
+
+@media (prefers-reduced-motion: reduce) {
+  .fx-plasmid .fx-plasmid__arc,
+  .fx-plasmid .fx-plasmid__label {
+    opacity: 1;
+    transition: none;
+  }
+
+  .fx-plasmid .fx-plasmid__backbone {
+    stroke-dashoffset: 0;
+    transition: none;
+  }
+}
+/* ==== /WP-06 ==== */
+
+/* ==== WP-09b: Problem ==== */
+/* Section 02, spec section 7.2 with override A6 Q3 applied: prose only, no
+   stat row, no numeral anywhere except the decorative 02 in the section head.
+
+   Almost everything this section needs already exists in layout.css:
+   .container--narrow is the 720px measure, .sec-head is the spec 5.5 head
+   with its rule draw and its 60ms numeral/kicker stagger, and .prose is the
+   34em measure with the 1.65 line height. This block adds only what is
+   genuinely local to section 02. */
+
+.sec-problem {
+  /* The narrow container is centred by layout.css. This keeps the block of
+     prose left aligned inside it, never justified (spec section 5.3). */
+  text-align: left;
+}
+
+.sec-problem__prose {
+  /* Belt and braces on the measure. .prose already sets 34em; repeating it
+     here means the section still holds its line length if the prose class is
+     ever dropped from the markup. Same value, no new token. */
+  max-width: 34em;
+}
+
+.sec-problem__para {
+  /* Ragged right, with the last line balanced against the one above it where
+     the browser supports it. No effect on the measure. */
+  text-wrap: pretty;
+}
+
+/* --- Reduced motion, spec section 13.1 and the section 19 gate ------------
+   The paragraphs carry .reveal, whose hidden state base.css already cancels
+   under .no-motion, and core/observe.ts adds the settled class synchronously
+   when reduced motion is on. These two rules are the third, structural line
+   of defence: with reduced motion on, nothing this block owns can sit at
+   opacity 0, whatever class ended up on the element. */
+
+.no-motion .sec-problem__para {
+  opacity: 1;
+  transform: none;
+  transition: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sec-problem .sec-problem__para {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+}
+
+@media (max-width: 600px) {
+  .sec-problem__prose {
+    /* The clamped 34em already narrows on a phone. Nothing to override but
+       the space between the head and the prose, which reads tight at 375px. */
+    margin-block-start: var(--sp-2);
+  }
+}
+/* ==== /WP-09b ==== */
+
+/* ==== WP-09a: Hero ==== */
+/* Section 01. Spec section 7.1. Root class .sec-hero.
+
+   This block writes NO opacity and NO animation of its own. Every
+   hidden-then-settled state on the hero belongs to a shipped primitive:
+   .reveal / .is-revealed (base.css, WP-02), .fx-split--armed (WP-08's block
+   above) and .fx-plasmid--armed (WP-06's block above). All three settle
+   synchronously under reduced motion, so the section 19 gate holds here
+   structurally rather than by inspection.
+
+   Shared components are consumed, never restyled: .container, .btn,
+   .btn--primary, .btn--ghost, .lede, .micro and .mono all come from WP-05.
+   Only spacing and colour that belong to this section appear below.
+
+   Max specificity (0,2,0). No importance flag anywhere. Breakpoint 901 only. */
+
+/* The hero deliberately does NOT override the shared section rhythm from
+   layout.css. `.sec-hero` is added by mount() in JS, so any geometry this
+   class changes relative to the pre-mount shell is a layout shift the moment
+   the shell has already painted. Measured: a padding override here cost
+   0.0304 to 0.1088 of CLS under reduced motion, against a budget of exactly
+   0.00 (spec section 12). The shell's padding is therefore left alone and
+   every offset below is expressed as margin on this section's own children,
+   which do not exist before mount and so cannot shift anything. */
+
+/* One column by default, so the mobile case needs no query and the visual
+   sits BELOW the copy purely by source order. */
+.sec-hero__inner {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--sp-12);
+  align-items: center;
+}
+
+.sec-hero__kicker {
+  display: block;
+  margin: 0;
+  color: var(--ink-muted);
+}
+
+/* The page's one h1. Display serif, --t-hero, 1.15 leading per spec 5.3. */
+.sec-hero__title {
+  margin: 0;
+  margin-block-start: var(--sp-4);
+  font-family: var(--font-display);
+  font-size: var(--t-hero);
+  font-weight: 400;
+  line-height: 1.15;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+  text-wrap: balance;
+}
+
+/* Two lines of copy, one heading. A block span rather than a <br>, so each
+   line can be split and revealed on its own. */
+.sec-hero__line {
+  display: block;
+}
+
+.sec-hero__lede {
+  margin: 0;
+  margin-block-start: var(--sp-6);
+}
+
+.sec-hero__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-4);
+  margin-block-start: var(--sp-8);
+}
+
+.sec-hero__cta {
+  text-decoration: none;
+}
+
+.sec-hero__status {
+  display: block;
+  margin: 0;
+  margin-block-start: var(--sp-6);
+  color: var(--ink-faint);
+}
+
+.sec-hero__visual {
+  display: block;
+  inline-size: 100%;
+}
+
+/* The reserved square for the live map. .fx-plasmid (WP-06) already carries
+   aspect-ratio: 1, so the box exists at first paint and the map cannot shift
+   anything when it mounts. The CLS budget in spec section 12 is 0.00.
+   Below 901px the map renders at 300px square, per spec section 7.1. */
+.sec-hero__map {
+  max-inline-size: 300px;
+}
+
+@media (min-width: 901px) {
+  /* Two columns, 55/45, at and above the section 5.4 gate. */
+  .sec-hero__inner {
+    grid-template-columns: 55fr 45fr;
+    gap: var(--sp-16);
+  }
+
+  .sec-hero__map {
+    max-inline-size: 500px;
+  }
+}
+/* ==== /WP-09a ==== */
+
+/* ==== WP-09d: What it builds ==== */
+/* Section 04, spec section 7.4. Full width container, five cards in a
+   responsive grid, 3 then 2 at desktop, 2 at tablet, 1 at mobile, and one
+   centred closing line beneath.
+
+   WP-05 owns .grid, .card, .card__title and .card__body. They are consumed
+   here as they are: nothing in this block restyles one. The card hover is
+   declared once in components.css and is the entire card interaction.
+
+   The reveal lives on .sec-outputs__item, the grid child, never on the .card
+   itself, so the 14px reveal translate and the 2px hover translate never share
+   one transform or one transition declaration.
+
+   Breakpoints are the fixed table in spec section 5.4, written as literal px.
+   Max specificity (0,2,0). No importance flag. No negation pseudo class chain.
+   No bare element selector. No token defined here. */
+
+.sec-outputs__grid {
+  margin-block-start: var(--sp-12);
+  padding: 0;
+}
+
+/* Desktop: three across, then two. */
+.sec-outputs__item {
+  display: flex;
+  grid-column: span 4;
+}
+
+.sec-outputs__item--wide {
+  grid-column: span 6;
+}
+
+/* The card fills its row height so the five cards read as one band. */
+.sec-outputs__card {
+  flex: 1 1 auto;
+}
+
+.sec-outputs__body {
+  max-width: none;
+}
+
+/* --- The technical layer, spec section 1.4 -------------------------------
+   A native <details> / <summary>. The marker is left alone: it is drawn by
+   the browser, it is not an icon or an invented string, and it already tracks
+   the open state. */
+
+.sec-outputs__details {
+  margin-block-start: var(--sp-4);
+  padding-block-start: var(--sp-4);
+  border-top: 1px solid var(--rule);
+}
+
+.sec-outputs__summary {
+  font-family: var(--font-mono);
+  font-size: var(--t-micro);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+  cursor: pointer;
+  transition: color 240ms var(--ez-out-quart);
+}
+
+.sec-outputs__summary:hover {
+  color: var(--ink);
+}
+
+.sec-outputs__summary:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.sec-outputs__detail {
+  margin: var(--sp-3) 0 0;
+  font-size: var(--t-small);
+  line-height: 1.5;
+  color: var(--ink);
+}
+
+/* --- The closing line, spec section 7.4 ---------------------------------- */
+
+.sec-outputs__closing {
+  margin: var(--sp-16) auto 0;
+  max-width: 34em;
+  font-family: var(--font-display);
+  font-size: var(--t-lede);
+  font-style: italic;
+  line-height: 1.5;
+  text-align: center;
+  color: var(--ink-muted);
+}
+
+/* --- Tablet: two across at 900px, one at 600px --------------------------- */
+
+@media (max-width: 900px) {
+  .sec-outputs__item,
+  .sec-outputs__item--wide {
+    grid-column: span 3;
+  }
+}
+
+@media (max-width: 600px) {
+  .sec-outputs__item,
+  .sec-outputs__item--wide {
+    grid-column: auto;
+  }
+}
+/* ==== /WP-09d ==== */
+
+/* ==== WP-09g: Traction ==== */
+
+/* Section 07, Where we are. Spec section 7.7.
+
+   TEXT ONLY. No icon, no mark, no logo, no image, no background image, no
+   pseudo element glyph. Spec section 7.7 bans icons and override A6 Q4
+   records that there is no permission to display any third party mark, so
+   this block deliberately gives a mark nowhere to live.
+
+   Four in a row at desktop, two by two at tablet, stacked at mobile. The
+   shared .grid from layout.css does all three: 12 columns with a span of 3
+   is four across, the same span against the 6 column grid below 900px is two
+   across, and below 600px the grid is a single column. Only that last case
+   needs an override, because a span of 3 in a one column grid would create
+   implicit columns. Breakpoints here are 900 and 600 as literal px, per spec
+   section 5.4.
+
+   No token is defined here. No !important, no :not() chain, no bare element
+   selector. Maximum specificity is (0,2,0). */
+
+.sec-traction__grid {
+  /* The section head already carries the block rhythm above it. */
+  margin-block-start: var(--sp-12);
+  /* Rows need more air than the 12 column gutter when the grid wraps to
+     two rows at tablet or four at mobile. */
+  row-gap: var(--sp-8);
+}
+
+.sec-traction__item {
+  grid-column: span 3;
+  /* A hairline above each item, spec section 2.5's structural separator.
+     One rule colour, no glow, no shadow, no fill. */
+  border-block-start: 1px solid var(--rule);
+  padding-block-start: var(--sp-4);
+}
+
+.sec-traction__h {
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: var(--t-h3);
+  line-height: 1.15;
+  color: var(--ink);
+  margin: 0;
+}
+
+.sec-traction__b {
+  font-family: var(--font-body);
+  font-size: var(--t-body);
+  line-height: 1.65;
+  color: var(--ink-muted);
+  max-width: 34em;
+  margin-block-start: var(--sp-3);
+  text-wrap: pretty;
+}
+
+/* --- Reduced motion, spec section 13.1 and the section 19 gate ------------
+   The items carry .reveal, whose hidden state base.css already cancels under
+   .no-motion, and core/observe.ts adds the settled class synchronously when
+   reduced motion is on. These two rules are the third, structural line of
+   defence: with reduced motion on, nothing this block owns can sit at
+   opacity 0, whatever class ended up on the element. */
+
+.no-motion .sec-traction__item {
+  opacity: 1;
+  transform: none;
+  transition: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sec-traction .sec-traction__item {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+}
+
+@media (max-width: 600px) {
+  .sec-traction__item {
+    /* One column grid: a span would create implicit columns. */
+    grid-column: auto;
+  }
+
+  .sec-traction__grid {
+    margin-block-start: var(--sp-8);
+    row-gap: var(--sp-6);
+  }
+}
+/* ==== /WP-09g ==== */
+
+/* ==== WP-09e: Validation ==== */
+/* Section 05, spec section 7.5. Two columns at desktop, a report panel on the
+   right rendered from the baked payload, and a full width gold-set strip
+   beneath both columns.
+
+   Spec section 13.4: colour is never the only signal. The PASS and WARN words
+   are the carriers of meaning and the swatches are decorative, so no rule here
+   may ever hide the word and keep the swatch.
+
+   Spec section 5.2 reserves --pass and --warn for this section, which is why
+   WP-05 left the swatch primitives here rather than in components.css. No
+   token is defined in this block. Max specificity (0,2,0), no !important,
+   breakpoints 600, 720, 900 and 901 only. */
+
+.sec-validation__cols {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--sp-12);
+  margin-block-start: var(--sp-12);
+  align-items: start;
+}
+
+.sec-validation__prose {
+  /* Belt and braces on the 34em measure that .prose already sets. Same value,
+     no new token. */
+  max-width: 34em;
+}
+
+.sec-validation__para {
+  text-wrap: pretty;
+}
+
+/* --- The report panel ----------------------------------------------------
+   A sunk instrument panel, not a card: it is a readout, so it has no hover
+   interaction and no elevation. */
+
+.sec-validation__panel {
+  padding: var(--sp-6);
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  background-color: var(--paper-sunk);
+}
+
+.sec-validation__rows {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.sec-validation__row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: var(--sp-2) var(--sp-4);
+  align-items: baseline;
+  padding-block: var(--sp-3);
+  border-block-start: 1px solid var(--rule);
+}
+
+.sec-validation__row:first-child {
+  border-block-start: 0;
+  padding-block-start: 0;
+}
+
+.sec-validation__label {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: var(--t-micro);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.08em;
+  line-height: 1.5;
+  color: var(--ink);
+}
+
+.sec-validation__status {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--sp-1);
+  text-align: right;
+}
+
+/* The status mark: swatch plus word. inline-flex so the reveal transform
+   applies, which it would not on a bare inline box. */
+.sec-validation__mark {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  font-family: var(--font-mono);
+  font-size: var(--t-micro);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.08em;
+  line-height: 1.5;
+}
+
+/* The swatch is drawn as an SVG rect, never as a glyph or a tick mark emoji
+   (spec section 2.4). It is aria-hidden in the markup. Flat fill, one hue, no
+   gradient and no glow. */
+.sec-validation__swatch {
+  display: block;
+  flex: 0 0 auto;
+  inline-size: 10px;
+  block-size: 10px;
+}
+
+.sec-validation__mark--pass .sec-validation__swatch {
+  fill: var(--pass);
+}
+
+.sec-validation__mark--warn .sec-validation__swatch {
+  fill: var(--warn);
+}
+
+.sec-validation__mark--pass .sec-validation__word {
+  color: var(--pass);
+}
+
+.sec-validation__mark--warn .sec-validation__word {
+  color: var(--warn);
+}
+
+/* The reason string is data from the payload, shown only on a WARN row. */
+.sec-validation__reason {
+  display: block;
+  max-width: 24em;
+  font-family: var(--font-mono);
+  font-size: var(--t-micro);
+  line-height: 1.5;
+  color: var(--ink-muted);
+}
+
+/* --- The gold-set strip --------------------------------------------------
+   One unbroken line. Nothing here may put "100%" and "curated" on either side
+   of a hard break: the Appendix B qualifier has to stay with the number. */
+
+.sec-validation__goldset {
+  margin-block-start: var(--sp-12);
+  padding-block-start: var(--sp-6);
+  border-block-start: 1px solid var(--rule);
+}
+
+.sec-validation__goldset-line {
+  margin: 0;
+  font-size: var(--t-micro);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+}
+
+/* --- Reduced motion, spec section 13.1 and the section 19 gate ------------
+   core/observe.ts already settles everything synchronously when reduced
+   motion is on. These rules are the structural backstop: with reduced motion
+   on, nothing this block owns can sit at opacity 0, whatever class ended up
+   on the element. */
+
+.no-motion .sec-validation__label,
+.no-motion .sec-validation__mark,
+.no-motion .sec-validation__para,
+.no-motion .sec-validation__goldset {
+  opacity: 1;
+  transform: none;
+  transition: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sec-validation .sec-validation__label,
+  .sec-validation .sec-validation__mark,
+  .sec-validation .sec-validation__para,
+  .sec-validation .sec-validation__goldset {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+}
+
+/* --- Breakpoints ---------------------------------------------------------- */
+
+@media (min-width: 901px) {
+  .sec-validation__cols {
+    /* Two columns at desktop, spec section 7.5. The prose keeps its measure,
+       the panel takes the narrower track. */
+    grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr);
+    gap: var(--sp-16);
+  }
+}
+
+@media (max-width: 600px) {
+  .sec-validation__panel {
+    padding: var(--sp-4);
+  }
+
+  .sec-validation__row {
+    /* At 375px the label and its status no longer share a line without
+       hyphenating the label, so the status drops beneath it and aligns left
+       with everything else. */
+    grid-template-columns: 1fr;
+  }
+
+  .sec-validation__status {
+    align-items: flex-start;
+    text-align: left;
+  }
+}
+/* ==== /WP-09e ==== */
+
+/* ==== WP-09f: Structure ==== */
+/* Section 06, spec section 7.6. Full bleed, --paper-sunk, minimum 80vh.
+   Every selector is prefixed .sec-structure, max specificity (0,2,0), no
+   !important, breakpoints from the fixed table in spec section 5.4.
+
+   The viewer element inside this section belongs to WP-07. Its reserved
+   aspect-ratio 4 / 3 box, its background, its border and its interior are all
+   set in the WP-07 block above and nothing here touches them: this block only
+   places that element and the two text blocks that sit beside it. The CLS
+   budget is exactly 0.00. */
+
+.sec-structure {
+  background-color: var(--paper-sunk);
+  min-height: 80vh;
+}
+
+.sec-structure__stage {
+  position: relative;
+  /* A 4 / 3 box across the full 1200px container would be 900px tall, which
+     overruns the viewport on a laptop. This keeps the payoff visual large and
+     still whole on screen. The viewer element keeps its own aspect box. */
+  max-width: 900px;
+  margin-inline: auto;
+}
+
+.sec-structure__viewer {
+  display: block;
+  width: 100%;
+}
+
+/* Overlaid, left aligned (spec section 7.6). Opaque --paper-sunk, so the text
+   sits on the same measured surface as the rest of the section rather than on
+   whatever ribbon happens to be behind it. Opaque, so this is a panel and not
+   the frosted translucency spec section 2.4 bans. pointer-events: none keeps
+   drag to rotate reaching the canvas underneath. */
+.sec-structure__caption {
+  position: absolute;
+  inset-block-start: var(--sp-6);
+  inset-inline-start: var(--sp-6);
+  width: min(24em, 44%);
+  padding: var(--sp-6);
+  text-align: left;
+  background-color: var(--paper-sunk);
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  pointer-events: none;
+}
+
+.sec-structure__body {
+  margin: 0 0 var(--sp-4);
+  font-size: var(--t-small);
+  line-height: 1.65;
+  color: var(--ink-muted);
+  text-wrap: pretty;
+}
+
+.sec-structure__note {
+  margin: 0;
+  font-size: var(--t-small);
+  line-height: 1.65;
+  color: var(--ink);
+  text-wrap: pretty;
+}
+
+/* Spec section 9.3: small and mono. A sibling of the viewer element, in normal
+   flow beneath it, so it can never be inside the box WP-07 manages. */
+.sec-structure__credit {
+  margin: var(--sp-3) 0 0;
+  font-size: var(--t-micro);
+  line-height: 1.5;
+  color: var(--ink-faint);
+}
+
+/* --- Below 900px: the overlay stops being an overlay ---------------------
+   At tablet width the panel would cover most of the model, and below 720px
+   the viewer has already been replaced by the still (spec section 9.4). The
+   caption drops into normal flow beneath the viewer instead. */
+
+@media (max-width: 900px) {
+  .sec-structure__caption {
+    position: static;
+    width: auto;
+    max-width: 34em;
+    margin-block-start: var(--sp-6);
+    padding: 0;
+    border: 0;
+  }
+
+  .sec-structure__credit {
+    margin-block-start: var(--sp-6);
+  }
+}
+
+@media (max-width: 600px) {
+  .sec-structure__stage {
+    margin-block-start: var(--sp-2);
+  }
+}
+
+/* --- Reduced motion, spec section 13.1 and the section 19 gate ------------
+   The caption and the credit carry .reveal, whose hidden state base.css
+   already cancels under .no-motion, and core/observe.ts adds the settled
+   class synchronously when reduced motion is on. These rules are the third,
+   structural line of defence: with reduced motion on, nothing this block owns
+   can sit at opacity 0, whatever class ended up on the element. The viewer
+   element never carries .reveal at all. */
+
+.no-motion .sec-structure__caption,
+.no-motion .sec-structure__credit {
+  opacity: 1;
+  transform: none;
+  transition: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sec-structure .sec-structure__caption,
+  .sec-structure .sec-structure__credit {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+}
+/* ==== /WP-09f ==== */
+
+/* ==== WP-09c: How it works ==== */
+/* Section 03, spec section 7.3. THE ONE PINNED SECTION, desktop only.
+
+   Two variants, one DOM tree.
+
+   STACKED is the default and needs no class: five cards, each with its own
+   static visual, everything at full opacity. It is what renders below 901px,
+   what renders with reduced motion on, and what renders if the scrub never
+   runs at all.
+
+   STAGED is the pinned variant. Every rule below that can put an element at
+   opacity 0 sits inside the media query that mirrors the section 6.4 motion
+   gate exactly, AND behind the .sec-how--staged class, which src/sections/how.ts
+   adds at one place only: inside initScrub, which only the single
+   gsap.matchMedia block in main.ts calls. So no step in this section can
+   become unreachable (spec section 13.1).
+
+   Max specificity (0,2,0). No !important. No token defined here. */
+
+.sec-how__steps {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: var(--sp-12);
+  margin-block-start: var(--sp-12);
+}
+
+.sec-how__step {
+  padding-inline-start: var(--sp-6);
+  border-inline-start: 2px solid var(--accent);
+  color: var(--ink);
+}
+
+.sec-how__label {
+  margin: 0;
+  font-family: var(--font-body);
+  font-weight: 600;
+  font-size: var(--t-h3);
+  line-height: 1.15;
+  color: inherit;
+}
+
+.sec-how__line {
+  margin: var(--sp-2) 0 0;
+  max-inline-size: 34em;
+  font-size: var(--t-body);
+  line-height: 1.65;
+  color: var(--ink-muted);
+}
+
+.sec-how__vis {
+  margin-block-start: var(--sp-6);
+}
+
+/* --- 1. Describe. The one permitted typing effect, scrubbed by scroll. ---- */
+
+.sec-how__prompt {
+  display: block;
+  padding: var(--sp-4);
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  background: var(--card);
+  box-shadow: var(--shadow-sm);
+  font-family: var(--font-mono);
+  font-size: var(--t-small);
+  line-height: 1.5;
+  color: var(--ink);
+  min-block-size: 5.5em;
+}
+
+.sec-how__caret {
+  display: none;
+  inline-size: 0.55em;
+  block-size: 1.05em;
+  margin-inline-start: 0.1em;
+  vertical-align: text-bottom;
+  background: var(--ink-faint);
+}
+
+/* --- 2. Retrieve. Three record cards slide in and stack. ------------------ */
+
+.sec-how__records {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+
+.sec-how__record {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  padding: var(--sp-3);
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  background: var(--card);
+  box-shadow: var(--shadow-sm);
+}
+
+.sec-how__bar {
+  display: block;
+  block-size: 6px;
+  border-radius: 1px;
+  background: var(--paper-sunk);
+}
+
+/* --- 3. Generate. The mini plasmid map, owned by fx/plasmid.ts. -----------
+   The container also carries .fx-plasmid, which reserves its aspect-ratio box
+   before seqviz renders. That reservation is what keeps the measured pin
+   distance honest (spec section 7.3). */
+
+.sec-how__map {
+  margin-inline: 0;
+}
+
+/* --- 4. Validate. Checks tick down a list, each with a pass mark. --------- */
+
+.sec-how__checks {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+
+.sec-how__check {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+}
+
+/* stroke and stroke-width are inherited SVG properties, so the drawn path
+   picks both up from here and no bare element selector is needed. */
+.sec-how__mark {
+  flex: none;
+  stroke: var(--pass);
+  stroke-width: 2;
+  stroke-linecap: square;
+  stroke-linejoin: miter;
+}
+
+.sec-how__check-label {
+  font-family: var(--font-mono);
+  font-size: var(--t-micro);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+}
+
+/* --- 5. Export. File chips. ---------------------------------------------- */
+
+.sec-how__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-3);
+}
+
+.sec-how__chip {
+  padding: var(--sp-2) var(--sp-3);
+  border: 1px solid var(--rule-strong);
+  border-radius: 2px;
+  background: var(--card);
+  font-family: var(--font-mono);
+  font-size: var(--t-small);
+  color: var(--ink);
+}
+
+/* --- THE PINNED VARIANT ---------------------------------------------------
+   This query is the section 6.4 motion gate, written out. Everything that can
+   hide anything lives in here and behind .sec-how--staged. */
+
+@media (min-width: 901px) and (prefers-reduced-motion: no-preference) {
+  .sec-how--staged {
+    padding-block: 0;
+  }
+
+  .sec-how--staged .sec-how__inner {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    min-block-size: 100vh;
+    padding-block: var(--sp-16);
+  }
+
+  .sec-how--staged .sec-how__body {
+    position: relative;
+    min-block-size: 46vh;
+    margin-block-start: var(--sp-8);
+  }
+
+  .sec-how--staged .sec-how__steps {
+    inline-size: 46%;
+    gap: var(--sp-6);
+    margin-block-start: 0;
+  }
+
+  /* Inactive: faint text, hairline border. */
+  .sec-how--staged .sec-how__step {
+    color: var(--ink-faint);
+    border-inline-start: 2px solid var(--rule);
+    transition:
+      color var(--dur-micro) var(--ez-out-quart),
+      border-color var(--dur-micro) var(--ez-out-quart);
+  }
+
+  .sec-how--staged .sec-how__line {
+    color: inherit;
+  }
+
+  /* Active: --ink text, 2px --accent left border. */
+  .sec-how--staged .sec-how__step--active {
+    color: var(--ink);
+    border-inline-start-color: var(--accent);
+  }
+
+  /* The persistent diagram: five states stacked in one place on the right. */
+  .sec-how--staged .sec-how__vis {
+    position: absolute;
+    inset-block-start: 0;
+    inset-inline-end: 0;
+    inline-size: 48%;
+    margin-block-start: 0;
+    opacity: 0;
+    visibility: hidden;
+    transition:
+      opacity var(--dur-reveal) var(--ez-out-expo),
+      visibility 0s linear var(--dur-reveal);
+  }
+
+  .sec-how--staged .sec-how__vis--on {
+    opacity: 1;
+    visibility: visible;
+    transition:
+      opacity var(--dur-reveal) var(--ez-out-expo),
+      visibility 0s linear 0s;
+  }
+
+  /* Progressive parts: record cards, check rows, file chips. Scroll progress
+     toggles the --in class; the transition is what makes it a slide. */
+  .sec-how--staged .sec-how__part {
+    opacity: 0;
+    transform: translateX(16px);
+    transition:
+      opacity var(--dur-reveal) var(--ez-out-expo),
+      transform var(--dur-reveal) var(--ez-out-expo);
+  }
+
+  .sec-how--staged .sec-how__part--in {
+    opacity: 1;
+    transform: translateX(0);
+  }
+
+  .sec-how--staged .sec-how__caret {
+    display: inline-block;
+  }
+}
+
+/* --- Reduced motion backstop, spec section 13.1 and section 19 ------------
+   The query above already excludes reduced motion, so these rules exist for
+   the one case it cannot cover: a user turning the OS setting on while the
+   staged class is still on the element. Last in the block, so they win on
+   order at equal specificity. Nothing this section owns can then sit at
+   opacity 0, and every one of the five steps stays readable. */
+
+.no-motion .sec-how__vis {
+  position: static;
+  inline-size: auto;
+  margin-block-start: var(--sp-6);
+  opacity: 1;
+  visibility: visible;
+  transition: none;
+}
+
+.no-motion .sec-how__part {
+  opacity: 1;
+  transform: none;
+  transition: none;
+}
+
+.no-motion .sec-how__step {
+  color: var(--ink);
+  border-inline-start-color: var(--accent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sec-how .sec-how__vis {
+    position: static;
+    inline-size: auto;
+    margin-block-start: var(--sp-6);
+    opacity: 1;
+    visibility: visible;
+    transition: none;
+  }
+
+  .sec-how .sec-how__part {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+}
+/* ==== /WP-09c ==== */

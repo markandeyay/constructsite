@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Plasmid map harness</title>
+    <style>
+      body { margin: 0; padding: 32px; background: #FAF9F7; }
+      .harness { max-width: 560px; }
+      .harness__note { font: 12px ui-monospace, monospace; color: #656E77; margin-bottom: 16px; }
+    </style>
+  </head>
+  <body>
+    <!--
+      WP-06 standalone harness for src/fx/plasmid.ts. No section code, no copy.
+      It loads the real stylesheets so the WP-06 block in sections.css is the
+      thing under test, and it mounts the real module against the real payload.
+    -->
+    <div class="harness">
+      <p class="harness__note">WP-06 plasmid map harness</p>
+      <div id="map" class="fx-plasmid"></div>
+    </div>
+
+    <script type="module">
+      import '/src/styles/tokens.css';
+      import '/src/styles/base.css';
+      import '/src/styles/layout.css';
+      import '/src/styles/components.css';
+      import '/src/styles/sections.css';
+
+      import { initMotion } from '/src/core/motion.ts';
+      import { mountPlasmid, loadPlasmidPayload, featureType } from '/src/fx/plasmid.ts';
+
+      window.__errors = [];
+      window.__warnings = [];
+      window.__rejections = [];
+      const realError = console.error;
+      console.error = (...args) => { window.__errors.push(args.join(' ')); realError(...args); };
+      const realWarn = console.warn;
+      console.warn = (...args) => { window.__warnings.push(args.join(' ')); realWarn(...args); };
+      window.addEventListener('error', (e) => window.__errors.push(String(e.message)));
+      window.addEventListener('unhandledrejection', (e) => window.__rejections.push(String(e.reason)));
+
+      window.__featureType = featureType;
+      window.__loadPayload = loadPlasmidPayload;
+
+      initMotion();
+      window.__mounted = false;
+      mountPlasmid(document.getElementById('map')).then(() => { window.__mounted = true; });
+    </script>
+  </body>
+</html>
