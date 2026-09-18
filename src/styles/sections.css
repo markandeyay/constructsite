@@ -1,0 +1,42 @@
+/* ============================================================
+   sections.css
+   Created by WP-05. MULTI WRITER FILE. Spec 18.2 protocol, and
+   BUILD_CONTRACT C6.
+
+   THE PROTOCOL
+   1. Append exactly one clearly delimited block to the END of
+      this file. Never edit, reorder, or reformat another block.
+   2. A block looks exactly like this:
+
+        ==== WP-09c: How it works ====
+        .sec-how { }
+        ==== /WP-09c ====
+
+      written as CSS comments, opening and closing, with your own
+      work package id.
+   3. Every selector inside your block is prefixed with your
+      section root class. No bare element selectors, no utility
+      classes, no global overrides, no token definitions.
+   4. Maximum specificity is (0,2,0): one section class plus one
+      element class. Never !important. Never a :not() chain.
+      Never style a bare img; use .sec-x__img.
+   5. A genuinely shared component does not belong here. It
+      belongs in components.css, which WP-05 owns. Write a
+      "## Cross-WP requests" line in PROGRESS.md instead.
+   6. Tokens come from tokens.css. Nothing here defines one.
+   7. No em dash in any comment or string.
+
+   THE EIGHT BLOCKS, in document order. Each is appended by its
+   own agent, and only by that agent.
+
+     WP-09a  01 Hero              root .sec-hero
+     WP-09b  02 Problem           root .sec-problem
+     WP-09c  03 How it works      root .sec-how
+     WP-09d  04 What it builds    root .sec-outputs
+     WP-09e  05 Validation        root .sec-validation
+     WP-09f  06 Structure         root .sec-structure
+     WP-09g  07 Traction          root .sec-traction
+     WP-12   08 Contact           root .sec-contact
+
+   Nothing else lives in this file. WP-05 adds no rule here.
+   ============================================================ */

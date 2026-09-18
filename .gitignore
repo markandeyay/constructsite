@@ -1,0 +1,11 @@
+node_modules/
+dist/
+qa/shots/
+.vercel/
+*.local
+.DS_Store
+
+# Internal build inputs. Kept local: the repo is public and these documents
+# carry naming that must not ship. See PROGRESS.md orchestrator decisions.
+CONSTRUCT_WEBSITE_SYSTEM_DESIGN.md
+BUILD_CONTRACT.md

@@ -1,0 +1,434 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Construct: design token proof sheet</title>
+
+<!-- The two stylesheets under test, loaded exactly as the site loads them. -->
+<link rel="stylesheet" href="../src/styles/tokens.css" />
+<link rel="stylesheet" href="../src/styles/base.css" />
+
+<style>
+  /* base.css declares its @font-face src as '/fonts/...', which is correct for
+     the deployed site and unresolvable from a file:// open. These four faces
+     repeat the same files by relative path so this page renders the real
+     typefaces when it is opened straight off disk. Metric overrides are
+     omitted here on purpose: this sheet is proving the tokens, and the
+     overrides are proved by base.css itself. */
+  @font-face { font-family: 'Instrument Serif'; src: url('../public/fonts/instrument-serif-400.woff2') format('woff2'); font-weight: 400; font-display: block; }
+  @font-face { font-family: 'Inter'; src: url('../public/fonts/inter-400.woff2') format('woff2'); font-weight: 400; font-display: block; }
+  @font-face { font-family: 'Inter'; src: url('../public/fonts/inter-600.woff2') format('woff2'); font-weight: 600; font-display: block; }
+  @font-face { font-family: 'JetBrains Mono'; src: url('../public/fonts/jetbrains-mono-400.woff2') format('woff2'); font-weight: 400; font-display: block; }
+
+  .page { max-width: var(--container); margin: 0 auto; padding: var(--sp-12) var(--gutter) var(--sp-32); }
+  .head { border-bottom: 1px solid var(--rule-strong); padding-bottom: var(--sp-6); margin-bottom: var(--sp-12); }
+  .head h1 { font-size: clamp(2rem, 4vw, 3rem); }
+  .head p { color: var(--ink-muted); max-width: 34em; margin-top: var(--sp-3); }
+
+  .sec { margin-top: var(--sp-24); }
+  .sec > h2 { font-size: var(--t-h2); }
+  .sec > .note { color: var(--ink-muted); max-width: 34em; margin-top: var(--sp-2); }
+  .sec > hr { margin: var(--sp-4) 0 var(--sp-8); border-top: 1px solid var(--rule); }
+
+  table { border-collapse: collapse; width: 100%; font-size: var(--t-small); }
+  th, td { text-align: left; padding: var(--sp-2) var(--sp-3); border-bottom: 1px solid var(--rule); vertical-align: middle; }
+  th { font-family: var(--font-mono); font-size: var(--t-micro); text-transform: uppercase; letter-spacing: 0.08em; color: var(--ink-faint); font-weight: 400; }
+  td.num { font-family: var(--font-mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+  .chip { display: inline-block; width: 2.25rem; height: 1.4rem; border: 1px solid var(--rule-strong); border-radius: 2px; vertical-align: middle; }
+  .name { font-family: var(--font-mono); font-size: var(--t-small); }
+
+  .ratio { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+  .flag { display: inline-block; margin-left: var(--sp-2); font-family: var(--font-mono); font-size: var(--t-micro); letter-spacing: 0.08em; text-transform: uppercase; color: var(--fail); }
+  .ok { color: var(--ink-faint); }
+
+  .sample { padding: var(--sp-2) var(--sp-3); border-radius: 2px; border: 1px solid var(--rule); white-space: nowrap; }
+
+  .roles { display: grid; gap: var(--sp-2); grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
+
+  .type-row { display: grid; grid-template-columns: 11rem 1fr; gap: var(--sp-6); align-items: baseline; padding: var(--sp-4) 0; border-bottom: 1px solid var(--rule); }
+  .type-row .meta { font-family: var(--font-mono); font-size: var(--t-micro); text-transform: uppercase; letter-spacing: 0.08em; color: var(--ink-faint); }
+  .type-row .meta b { display: block; color: var(--ink); font-weight: 400; text-transform: none; letter-spacing: 0; margin-top: var(--sp-1); }
+
+  .sp-row { display: grid; grid-template-columns: 7rem 8rem 1fr; gap: var(--sp-4); align-items: center; padding: var(--sp-2) 0; }
+  .sp-bar { height: 0.75rem; background: var(--accent); border-radius: 1px; }
+
+  .ez-row { display: grid; grid-template-columns: 11rem 1fr; gap: var(--sp-4); align-items: center; padding: var(--sp-2) 0; border-bottom: 1px solid var(--rule); }
+  .ez-track { position: relative; height: 1.75rem; background: var(--paper-sunk); border-radius: 2px; overflow: hidden; }
+  .ez-dot { position: absolute; top: 0.375rem; left: 0.25rem; width: 1rem; height: 1rem; border-radius: 50%; background: var(--accent); }
+
+  .flags-summary { margin-top: var(--sp-6); padding: var(--sp-4); background: var(--paper-sunk); border: 1px solid var(--rule); border-radius: 4px; font-size: var(--t-small); }
+  .flags-summary h3 { font-size: var(--t-body); margin-bottom: var(--sp-2); }
+  .flags-summary li { margin-top: var(--sp-1); font-family: var(--font-mono); font-size: var(--t-small); }
+</style>
+</head>
+
+<body>
+<div class="page">
+
+  <header class="head">
+    <h1>Design token proof sheet</h1>
+    <p class="mono micro" style="color: var(--ink-faint); margin-bottom: var(--sp-3);">WP-02 / TOKENS.CSS + BASE.CSS</p>
+    <p>
+      Every value below is read at runtime from the live custom properties in
+      <span class="mono">tokens.css</span>. Nothing on this page is hard-coded, so a
+      token that fails to parse renders as a visible gap rather than a plausible
+      lie. Contrast ratios are computed in the page, from the resolved colors,
+      using the WCAG 2.x relative luminance formula.
+    </p>
+  </header>
+
+  <section class="sec">
+    <h2>Color</h2>
+    <p class="note">
+      Contrast is measured against all three surfaces.
+      <span class="mono">--paper-sunk</span> is the tightest surface in the system,
+      so it is the one that decides.
+    </p>
+    <hr />
+    <table id="color-table">
+      <thead>
+        <tr>
+          <th>Token</th>
+          <th>Value</th>
+          <th>Role</th>
+          <th>on --paper</th>
+          <th>on --paper-sunk</th>
+          <th>on --card</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+    <div class="flags-summary" id="flags"></div>
+  </section>
+
+  <section class="sec">
+    <h2>Surfaces, rendered</h2>
+    <p class="note">The three backgrounds, each carrying the three ink weights.</p>
+    <hr />
+    <div class="roles" id="surface-demo"></div>
+  </section>
+
+  <section class="sec">
+    <h2>Type scale</h2>
+    <p class="note">
+      Fluid and clamped. Resize the window: the computed pixel value next to each
+      step updates, which is the proof that the clamp is live and not a static
+      rem.
+    </p>
+    <hr />
+    <div id="type-demo"></div>
+  </section>
+
+  <section class="sec">
+    <h2>Spacing</h2>
+    <p class="note">The bar length is the token. The pixel figure is its computed value at this viewport.</p>
+    <hr />
+    <div id="space-demo"></div>
+  </section>
+
+  <section class="sec">
+    <h2>Measure and gutter</h2>
+    <hr />
+    <div id="measure-demo"></div>
+  </section>
+
+  <section class="sec">
+    <h2>Easing and duration</h2>
+    <p class="note">Click a row to run its curve at its paired duration.</p>
+    <hr />
+    <div id="ez-demo"></div>
+  </section>
+
+  <section class="sec">
+    <h2>Reveal primitives</h2>
+    <p class="note">
+      The two classes WP-03 toggles. The button swaps
+      <span class="mono">.is-revealed</span> on and off.
+    </p>
+    <hr />
+    <p>
+      <button id="reveal-btn" style="border: 1px solid var(--rule-strong); border-radius: 2px; padding: var(--sp-2) var(--sp-4); font-size: var(--t-small);">
+        Toggle .is-revealed
+      </button>
+    </p>
+    <div id="reveal-target" class="reveal" style="margin-top: var(--sp-6); padding: var(--sp-6); background: var(--card); border: 1px solid var(--rule); border-radius: 4px;">
+      <p class="mono micro" style="color: var(--ink-faint);">REVEAL TARGET</p>
+      <p style="margin-top: var(--sp-2);">Opacity 0 and translateY(14px) at rest. Settled over 600ms on --ez-out-expo.</p>
+    </div>
+  </section>
+
+</div>
+
+<script>
+(function () {
+  var root = document.documentElement;
+  var cs = getComputedStyle(root);
+  function tok(name) { return cs.getPropertyValue(name).trim(); }
+
+  /* ---------- color math --------------------------------------------------
+     WCAG 2.x: linearize each sRGB channel, weight, then (L1+0.05)/(L2+0.05).
+     Colors are resolved through a canvas so any legal CSS color form works,
+     not only the six-digit hex the token file happens to use today.        */
+  var probe = document.createElement('canvas').getContext('2d', { willReadFrequently: true });
+  probe.canvas.width = probe.canvas.height = 1;
+
+  // Resolves a color to opaque sRGB. A translucent token (--paper-a92) is
+  // composited over the backdrop it is actually being measured against, which
+  // is the only way its ratio means anything.
+  function toRgb(color, backdrop) {
+    probe.clearRect(0, 0, 1, 1);
+    probe.fillStyle = backdrop || '#FFFFFF';
+    probe.fillRect(0, 0, 1, 1);
+    probe.fillStyle = color;
+    probe.fillRect(0, 0, 1, 1);
+    var d = probe.getImageData(0, 0, 1, 1).data;
+    return [d[0], d[1], d[2]];
+  }
+
+  function luminance(rgb) {
+    var c = rgb.map(function (v) {
+      v = v / 255;
+      return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
+    });
+    return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
+  }
+
+  function contrast(a, b) {
+    var lb = luminance(toRgb(b));
+    var la = luminance(toRgb(a, b));
+    var hi = Math.max(la, lb);
+    var lo = Math.min(la, lb);
+    return (hi + 0.05) / (lo + 0.05);
+  }
+
+  var SURFACES = [
+    { token: '--paper', value: tok('--paper') },
+    { token: '--paper-sunk', value: tok('--paper-sunk') },
+    { token: '--card', value: tok('--card') }
+  ];
+
+  /* text: must clear 4.5:1 as body copy.
+     non-text: separators, tints and fills. Contrast is reported for
+     completeness, and a low number is expected and correct, because no
+     letterform is ever set in these. */
+  var COLORS = [
+    ['--ink', 'text'],
+    ['--ink-muted', 'text'],
+    ['--ink-faint', 'text'],
+    ['--accent', 'text'],
+    ['--accent-deep', 'text'],
+    ['--pass', 'text'],
+    ['--warn', 'text'],
+    ['--fail', 'text'],
+    ['--feat-promoter', 'text'],
+    ['--feat-cds', 'text'],
+    ['--feat-marker', 'text'],
+    ['--feat-origin', 'text'],
+    ['--feat-terminator', 'text'],
+    ['--rule', 'non-text'],
+    ['--rule-strong', 'non-text'],
+    ['--accent-wash', 'non-text'],
+    ['--paper', 'surface'],
+    ['--paper-sunk', 'surface'],
+    ['--card', 'surface'],
+    ['--paper-a92', 'surface']
+  ];
+
+  var tbody = document.querySelector('#color-table tbody');
+  var failures = [];
+
+  COLORS.forEach(function (entry) {
+    var name = entry[0];
+    var role = entry[1];
+    var value = tok(name);
+    var tr = document.createElement('tr');
+
+    var cells = [];
+    cells.push('<td><span class="chip" style="background:' + value + '"></span> <span class="name">' + name + '</span></td>');
+    cells.push('<td class="num">' + value + '</td>');
+    cells.push('<td class="num" style="color: var(--ink-faint)">' + role + '</td>');
+
+    SURFACES.forEach(function (s) {
+      if (name === s.token) {
+        cells.push('<td class="num" style="color: var(--ink-faint)">self</td>');
+        return;
+      }
+      var r = contrast(value, s.value);
+      var txt = r.toFixed(2) + ':1';
+      var flag = '';
+      if (r < 4.5) {
+        flag = role === 'text'
+          ? '<span class="flag"> FAIL AA</span>'
+          : '<span class="flag" style="color: var(--ink-faint)"> below 4.5, non-text</span>';
+        failures.push({ token: name, surface: s.token, ratio: r, role: role });
+      }
+      cells.push('<td class="num"><span class="sample" style="color:' + value + ';background:' + s.value + '">Ag 123</span> <span class="ratio">' + txt + '</span>' + flag + '</td>');
+    });
+
+    tr.innerHTML = cells.join('');
+    tbody.appendChild(tr);
+  });
+
+  var textFails = failures.filter(function (f) { return f.role === 'text'; });
+  var otherFails = failures.filter(function (f) { return f.role !== 'text'; });
+  var flagsEl = document.getElementById('flags');
+  var html = '<h3>Pairs below 4.5:1</h3>';
+  if (!textFails.length) {
+    html += '<p>No text token falls below 4.5:1 on any of the three surfaces. The tightest pair in the system is reported below.</p>';
+  } else {
+    html += '<p style="color: var(--fail)">' + textFails.length + ' text pair(s) fail AA:</p><ul>';
+    textFails.forEach(function (f) {
+      html += '<li>' + f.token + ' on ' + f.surface + ' = ' + f.ratio.toFixed(2) + ':1</li>';
+    });
+    html += '</ul>';
+  }
+  if (otherFails.length) {
+    html += '<p style="margin-top: var(--sp-3); color: var(--ink-muted)">' + otherFails.length +
+      ' non-text pair(s) sit below 4.5:1 by design. These are hairlines, tints and surfaces. No text is ever set in them.</p>';
+  }
+
+  // The tightest text pair, named explicitly. It is the one to re-check after
+  // any palette change.
+  var tightest = null;
+  COLORS.forEach(function (entry) {
+    if (entry[1] !== 'text') return;
+    SURFACES.forEach(function (s) {
+      var r = contrast(tok(entry[0]), s.value);
+      if (!tightest || r < tightest.ratio) tightest = { token: entry[0], surface: s.token, ratio: r };
+    });
+  });
+  html += '<p style="margin-top: var(--sp-3)">Tightest text pair: <span class="mono">' + tightest.token +
+    '</span> on <span class="mono">' + tightest.surface + '</span> at <span class="mono">' +
+    tightest.ratio.toFixed(2) + ':1</span>.</p>';
+  flagsEl.innerHTML = html;
+
+  /* ---------- surfaces ------------------------------------------------- */
+  var sd = document.getElementById('surface-demo');
+  SURFACES.forEach(function (s) {
+    var d = document.createElement('div');
+    d.style.cssText = 'background:' + s.value + ';border:1px solid var(--rule);border-radius:4px;padding:var(--sp-4)';
+    d.innerHTML =
+      '<p class="mono micro" style="color: var(--ink-faint)">' + s.token + '</p>' +
+      '<p style="color: var(--ink); margin-top: var(--sp-2)">Primary ink</p>' +
+      '<p style="color: var(--ink-muted)">Muted ink</p>' +
+      '<p style="color: var(--ink-faint)">Faint ink</p>' +
+      '<p style="color: var(--accent)">Accent</p>';
+    sd.appendChild(d);
+  });
+
+  /* ---------- type ------------------------------------------------------ */
+  var TYPE = [
+    ['--t-hero', 'display serif', 'var(--font-display)', 400, 1.15, 'Describe what you want to build.'],
+    ['--t-h2', 'display serif', 'var(--font-display)', 400, 1.15, 'Design is the bottleneck.'],
+    ['--t-h3', 'inter 600', 'var(--font-body)', 600, 1.3, 'Checked by rules, not guesses.'],
+    ['--t-lede', 'inter 400', 'var(--font-body)', 400, 1.55, 'Construct turns plain-English intent into validated designs.'],
+    ['--t-body', 'inter 400', 'var(--font-body)', 400, 1.65, 'Work that takes an expert days now takes minutes.'],
+    ['--t-small', 'inter 400', 'var(--font-body)', 400, 1.6, 'Lab, company, or university. Optional.'],
+    ['--t-micro', 'mono, upper, 0.08em', 'var(--font-mono)', 400, 1.5, 'LIVE / OPEN SOURCE / MIT LICENSED']
+  ];
+  var td = document.getElementById('type-demo');
+  var typeRows = [];
+  TYPE.forEach(function (t) {
+    var row = document.createElement('div');
+    row.className = 'type-row';
+    var upper = t[0] === '--t-micro';
+    row.innerHTML =
+      '<div class="meta">' + t[0] + '<b>' + t[1] + '</b><b data-px></b></div>' +
+      '<div data-sample style="font-family:' + t[2] + ';font-weight:' + t[3] +
+        ';font-size:var(' + t[0] + ');line-height:' + t[4] +
+        (upper ? ';text-transform:uppercase;letter-spacing:0.08em' : '') + '">' + t[5] + '</div>';
+    td.appendChild(row);
+    typeRows.push({ row: row, token: t[0] });
+  });
+
+  function updatePx() {
+    typeRows.forEach(function (r) {
+      var px = getComputedStyle(r.row.querySelector('[data-sample]')).fontSize;
+      r.row.querySelectorAll('[data-px]')[0].textContent = px + ' here';
+    });
+    document.querySelectorAll('[data-sp-px]').forEach(function (el) {
+      el.textContent = el.dataset.spPx;
+    });
+  }
+
+  /* ---------- spacing --------------------------------------------------- */
+  var SP = ['--sp-1', '--sp-2', '--sp-3', '--sp-4', '--sp-6', '--sp-8', '--sp-12', '--sp-16', '--sp-24', '--sp-32', '--sp-48'];
+  var spd = document.getElementById('space-demo');
+  SP.forEach(function (name) {
+    var probeEl = document.createElement('div');
+    probeEl.style.width = 'var(' + name + ')';
+    document.body.appendChild(probeEl);
+    var px = getComputedStyle(probeEl).width;
+    document.body.removeChild(probeEl);
+
+    var row = document.createElement('div');
+    row.className = 'sp-row';
+    row.innerHTML =
+      '<span class="name">' + name + '</span>' +
+      '<span class="num" style="color: var(--ink-faint)">' + tok(name) + ' = ' + px + '</span>' +
+      '<span class="sp-bar" style="width: var(' + name + ')"></span>';
+    spd.appendChild(row);
+  });
+
+  /* ---------- measure --------------------------------------------------- */
+  var md = document.getElementById('measure-demo');
+  [['--container', 'full-width sections'], ['--container-narrow', 'prose sections'], ['--gutter', 'side padding, fluid']].forEach(function (m) {
+    var probeEl = document.createElement('div');
+    probeEl.style.width = 'var(' + m[0] + ')';
+    probeEl.style.maxWidth = 'none';
+    document.body.appendChild(probeEl);
+    var px = getComputedStyle(probeEl).width;
+    document.body.removeChild(probeEl);
+    var row = document.createElement('div');
+    row.className = 'sp-row';
+    row.innerHTML =
+      '<span class="name">' + m[0] + '</span>' +
+      '<span class="num" style="color: var(--ink-faint)">' + px + '</span>' +
+      '<span style="color: var(--ink-muted); font-size: var(--t-small)">' + m[1] + '</span>';
+    md.appendChild(row);
+  });
+
+  /* ---------- easing ---------------------------------------------------- */
+  var EZ = [
+    ['--ez-out-expo', '--dur-draw'],
+    ['--ez-out-quart', '--dur-micro'],
+    ['--ez-in-out', '--dur-reveal'],
+    ['--ez-linear', '--dur-hero']
+  ];
+  var ezd = document.getElementById('ez-demo');
+  EZ.forEach(function (e) {
+    var row = document.createElement('div');
+    row.className = 'ez-row';
+    row.innerHTML =
+      '<div><span class="name">' + e[0] + '</span><br><span class="num" style="color: var(--ink-faint); font-size: var(--t-micro)">' +
+        tok(e[0]) + '</span><br><span class="num" style="color: var(--ink-faint); font-size: var(--t-micro)">' +
+        e[1] + ' = ' + tok(e[1]) + '</span></div>' +
+      '<div class="ez-track"><span class="ez-dot"></span></div>';
+    ezd.appendChild(row);
+
+    var track = row.querySelector('.ez-track');
+    var dot = row.querySelector('.ez-dot');
+    var on = false;
+    function run() {
+      on = !on;
+      dot.style.transition = 'transform var(' + e[1] + ') var(' + e[0] + ')';
+      dot.style.transform = on ? 'translateX(' + (track.clientWidth - 24) + 'px)' : 'translateX(0)';
+    }
+    track.addEventListener('click', run);
+    setTimeout(run, 400);
+  });
+
+  /* ---------- reveal ---------------------------------------------------- */
+  var rb = document.getElementById('reveal-btn');
+  var rt = document.getElementById('reveal-target');
+  rb.addEventListener('click', function () { rt.classList.toggle('is-revealed'); });
+  setTimeout(function () { rt.classList.add('is-revealed'); }, 300);
+
+  updatePx();
+  window.addEventListener('resize', updatePx);
+})();
+</script>
+</body>
+</html>

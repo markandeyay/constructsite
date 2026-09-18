@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Construct: component gallery</title>
+<!-- Real tokens, real base, real layout, real components. No copies. -->
+<link rel="stylesheet" href="../src/styles/tokens.css" />
+<link rel="stylesheet" href="../src/styles/base.css" />
+<link rel="stylesheet" href="../src/styles/layout.css" />
+<link rel="stylesheet" href="../src/styles/components.css" />
+<style>
+  /* Gallery chrome only. Not part of the shipped system. */
+  .gal { padding-block: var(--sp-12); }
+  .gal__h { font-family: var(--font-mono); font-size: var(--t-micro);
+            letter-spacing: 0.08em; text-transform: uppercase;
+            color: var(--ink-faint); margin: 0 0 var(--sp-4); }
+  .gal__row { display: flex; flex-wrap: wrap; gap: var(--sp-4);
+              align-items: center; margin-block-end: var(--sp-6); }
+  .gal__cards { display: grid; gap: var(--sp-6);
+                grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
+  .gal__note { font-family: var(--font-mono); font-size: var(--t-micro);
+               letter-spacing: 0.08em; text-transform: uppercase;
+               color: var(--ink-faint); }
+  .gal__gridcell { background: var(--paper-sunk); border: 1px solid var(--rule);
+                   padding: var(--sp-2); text-align: center;
+                   font-family: var(--font-mono); font-size: var(--t-micro);
+                   color: var(--ink-faint); }
+</style>
+</head>
+<body>
+
+<a class="skip-link" href="#main">Skip to content</a>
+
+<header class="site-header site-header--bordered" id="site-header">
+  <div class="site-header__inner">
+    <a class="site-header__wordmark" href="#main">Construct</a>
+    <nav class="site-header__nav" aria-label="Primary">
+      <a class="site-header__link" href="#how">How it works</a>
+      <a class="site-header__link" href="#outputs">What it builds</a>
+      <a class="site-header__link site-header__link--contact" href="#contact">Contact</a>
+      <a class="btn btn--ghost site-header__cta" href="https://github.com/markandeyay/constructsite">View the code</a>
+    </nav>
+  </div>
+</header>
+
+<main id="main">
+
+  <section class="section">
+    <div class="container">
+      <p class="micro">Component gallery. Every shared component, against the real tokens.</p>
+      <p class="lede">Resize below 720px to see the header nav collapse to Contact only. Tab through the page to see every focus ring. Toggle the reduced motion preference to check the settled states.</p>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container">
+
+      <!-- Section head, with and without the revealed state -->
+      <div class="gal">
+        <p class="gal__h">Section head, settled state</p>
+        <header class="sec-head is-revealed">
+          <span class="sec-head__num" aria-hidden="true">02</span>
+          <span class="sec-head__kicker">The cost</span>
+          <h2 class="sec-head__title">Design is the bottleneck.</h2>
+          <hr class="sec-head__rule" />
+        </header>
+        <p class="gal__h">Section head, initial state. Numeral and kicker hidden, rule undrawn.</p>
+        <header class="sec-head">
+          <span class="sec-head__num" aria-hidden="true">03</span>
+          <span class="sec-head__kicker">The pipeline</span>
+          <h2 class="sec-head__title">From a sentence to a sequence.</h2>
+          <hr class="sec-head__rule" />
+        </header>
+        <p class="gal__note">Toggle: <button class="btn btn--ghost" type="button" id="toggle-reveal">Toggle .is-revealed</button></p>
+      </div>
+
+      <!-- Buttons -->
+      <div class="gal">
+        <p class="gal__h">Buttons, primary</p>
+        <div class="gal__row">
+          <button class="btn btn--primary" type="button">Rest</button>
+          <button class="btn btn--primary" type="button" id="btn-hover-p">Hover me</button>
+          <button class="btn btn--primary" type="button" autofocus>Focus with Tab</button>
+          <button class="btn btn--primary" type="button" disabled>Disabled</button>
+        </div>
+        <p class="gal__h">Buttons, ghost</p>
+        <div class="gal__row">
+          <button class="btn btn--ghost" type="button">Rest</button>
+          <button class="btn btn--ghost" type="button">Hover me</button>
+          <button class="btn btn--ghost" type="button" disabled>Disabled</button>
+          <a class="btn btn--ghost" href="#main">As a link</a>
+        </div>
+      </div>
+
+      <!-- Cards -->
+      <div class="gal">
+        <p class="gal__h">Cards</p>
+        <div class="gal__cards">
+          <article class="card">
+            <h3 class="card__title">Lab workhorses</h3>
+            <p class="card__body">The everyday constructs behind almost every molecular biology experiment, designed and checked in minutes.</p>
+          </article>
+          <article class="card">
+            <h3 class="card__title">Gene editing</h3>
+            <p class="card__body">Targeting sequences for editing experiments, with the checks that keep them specific.</p>
+          </article>
+          <article class="card">
+            <h3 class="card__title">Programmable biology</h3>
+            <p class="card__body">Multi-part designs where cells sense, decide, or manufacture, rather than simply express one gene.</p>
+          </article>
+        </div>
+      </div>
+
+      <!-- Rule -->
+      <div class="gal">
+        <p class="gal__h">Hairline rule utility</p>
+        <hr class="rule" />
+      </div>
+
+      <!-- Grid -->
+      <div class="gal">
+        <p class="gal__h">12 column grid. 6 columns at 900px, 1 column at 600px.</p>
+        <div class="grid">
+          <div class="gal__gridcell">1</div><div class="gal__gridcell">2</div>
+          <div class="gal__gridcell">3</div><div class="gal__gridcell">4</div>
+          <div class="gal__gridcell">5</div><div class="gal__gridcell">6</div>
+          <div class="gal__gridcell">7</div><div class="gal__gridcell">8</div>
+          <div class="gal__gridcell">9</div><div class="gal__gridcell">10</div>
+          <div class="gal__gridcell">11</div><div class="gal__gridcell">12</div>
+        </div>
+      </div>
+
+      <!-- Text primitives -->
+      <div class="gal">
+        <p class="gal__h">Text primitives</p>
+        <p class="micro">Micro, mono, uppercase, tracked</p>
+        <p class="lede">Lede. Construct turns plain-English intent into validated, ready-to-build genetic designs.</p>
+        <div class="prose">
+          <p>Prose, capped at 34em which is roughly 68 characters. This design work sits at the start of nearly every experiment and drug program, and today it is done by hand.</p>
+          <p>A researcher picks parts from thousands of options, checks that everything fits together, and confirms the result can actually be manufactured.</p>
+        </div>
+        <p class="mono">Mono: pCON-DEMO-01 · 5412 bp · 1204..2064 (-)</p>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- Form -->
+  <section class="section" id="contact">
+    <div class="container container--narrow">
+      <p class="gal__h">Form controls</p>
+      <form class="form" action="#" novalidate>
+        <div class="form__row">
+          <div class="field">
+            <label class="field__label" for="g-name">Name</label>
+            <input class="field__control" id="g-name" name="name" type="text" required aria-required="true" />
+          </div>
+          <div class="field">
+            <label class="field__label" for="g-email">Email</label>
+            <input class="field__control" id="g-email" name="email" type="email" required aria-required="true"
+                   aria-invalid="true" aria-describedby="g-email-err" value="not-an-address" />
+            <p class="field__error" id="g-email-err">Enter a valid email address.</p>
+          </div>
+        </div>
+
+        <div class="field">
+          <label class="field__label" for="g-org">Organization</label>
+          <input class="field__control" id="g-org" name="org" type="text" aria-describedby="g-org-hint" />
+          <p class="field__hint" id="g-org-hint">Lab, company, or university. Optional.</p>
+        </div>
+
+        <div class="field">
+          <label class="field__label" for="g-subject">Subject</label>
+          <select class="field__control" id="g-subject" name="subject" required aria-required="true">
+            <option value="">Select one</option>
+            <option>Early access</option>
+            <option>Partnership</option>
+            <option>Investment</option>
+            <option>Press</option>
+            <option>Something else</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label class="field__label" for="g-message">Message</label>
+          <textarea class="field__control" id="g-message" name="message" rows="6" required aria-required="true"></textarea>
+        </div>
+
+        <div class="field">
+          <label class="field__label" for="g-disabled">Disabled control</label>
+          <input class="field__control" id="g-disabled" type="text" value="Disabled" disabled />
+        </div>
+
+        <div class="form__honeypot" aria-hidden="true">
+          <label class="field__label" for="g-website">Website</label>
+          <input class="field__control" id="g-website" name="website" type="text" tabindex="-1" autocomplete="off" />
+        </div>
+
+        <div class="gal__row">
+          <button class="btn btn--primary" type="submit">Send</button>
+          <button class="btn btn--primary" type="button" disabled>Sending</button>
+        </div>
+
+        <p class="form__status" role="status" aria-live="polite">Mail line not wired yet.</p>
+      </form>
+    </div>
+  </section>
+
+</main>
+
+<footer class="site-footer" id="site-footer">
+  <div class="site-footer__inner">
+    <div class="site-footer__left">Construct. Chapel Hill, NC.</div>
+    <div class="site-footer__right">
+      <a href="https://github.com/markandeyay/constructsite">GitHub</a>
+      <span>2026</span>
+    </div>
+  </div>
+</footer>
+
+<script>
+  // Gallery only. Proves the .is-revealed transition without the site.
+  document.getElementById('toggle-reveal').addEventListener('click', function () {
+    document.querySelectorAll('.sec-head').forEach(function (h) {
+      h.classList.toggle('is-revealed');
+    });
+  });
+</script>
+
+</body>
+</html>

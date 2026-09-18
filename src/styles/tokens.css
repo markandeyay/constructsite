@@ -1,0 +1,115 @@
+/* ============================================================================
+   tokens.css
+   Custom properties only. No selectors other than :root.
+   Owner: WP-02. Sources: spec sections 5.2, 5.3, 5.4, 6.1.
+
+   Rules that bind every consumer of this file:
+   - No gradient is defined here and none may be built from these values with
+     two different hues. The only permitted gradient anywhere is a single-hue
+     alpha fade used as a scroll mask.
+   - Shadows are neutral. There is no colored shadow and no glow token,
+     because there is no colored shadow or glow on this site.
+   - Color carries meaning, not decoration.
+   ========================================================================== */
+
+:root {
+  /* --- Surfaces ---------------------------------------------------------- */
+  --paper:        #FAF9F7;  /* page background, warm off-white, not pure white */
+  --paper-sunk:   #F2F0EC;  /* inset panels, table stripes */
+  --card:         #FFFFFF;  /* raised card surface */
+  --ink:          #14171A;  /* primary text, near-black with a cool cast */
+  --ink-muted:    #5C6570;  /* secondary text, captions, labels */
+  --ink-faint:    #656E77;  /* tertiary, section numerals, placeholder.
+                               Verified 4.93:1 on --paper, 4.56:1 on
+                               --paper-sunk. Do NOT lighten it: the obvious
+                               choice (#9AA3AC) measures 2.43:1 and fails AA. */
+  --rule:         #E2DFD9;  /* hairline separators */
+  --rule-strong:  #C9C5BD;  /* emphasized separators */
+
+  /* --- Accent ------------------------------------------------------------
+     A single deep green. Chosen because it reads biological without being
+     neon, and it is distinct from the blue every AI startup uses. It is NOT a
+     gradient and NEVER glows. */
+  --accent:       #1F6B4A;
+  --accent-deep:  #14472F;
+  --accent-wash:  #E8F1EC;  /* 8% tint for backgrounds only */
+
+  /* --- Semantic ----------------------------------------------------------
+     Used ONLY in the validation section and plasmid annotations. */
+  --pass:         #1F6B4A;  /* same as accent, intentionally */
+  --warn:         #8A5E12;  /* amber, for accepted-with-caveats.
+                               5.41:1 on --paper. #A8751B measures 3.82:1
+                               and fails AA. */
+  --fail:         #A03226;  /* brick red, for known-bad */
+
+  /* --- Plasmid feature colors -------------------------------------------
+     Muted, print-like, distinguishable when desaturated.
+     Verified colorblind-safe, see spec section 13.4. */
+  --feat-promoter:  #2E6F95;
+  --feat-cds:       #1F6B4A;
+  --feat-marker:    #8A5E12;
+  --feat-origin:    #6B4A7A;
+  --feat-terminator:#5C6570;
+
+  /* --- Translucent surface ----------------------------------------------
+     For the header only. --paper at 92% alpha. backdrop-filter over an opaque
+     color is a no-op, so the alpha has to live in the color, not in an
+     opacity property. */
+  --paper-a92:    rgb(250 249 247 / 0.92);
+
+  /* --- Elevation ---------------------------------------------------------
+     Shadows are neutral and shallow. No colored shadows. */
+  --shadow-sm: 0 1px 2px rgba(20,23,26,0.04);
+  --shadow-md: 0 2px 8px rgba(20,23,26,0.06);
+
+  /* --- Type scale (fluid, clamped) --------------------------------------- */
+  --t-hero:    clamp(2.75rem, 6vw, 5.25rem);   /* display serif */
+  --t-h2:      clamp(2rem, 4vw, 3.25rem);      /* display serif */
+  --t-h3:      clamp(1.25rem, 2vw, 1.625rem);  /* inter, 600 */
+  --t-lede:    clamp(1.125rem, 1.6vw, 1.375rem);
+  --t-body:    1rem;
+  --t-small:   0.875rem;
+  --t-micro:   0.75rem;                        /* mono, uppercase, tracked */
+
+  /* --- Spacing ----------------------------------------------------------- */
+  --sp-1:  0.25rem;
+  --sp-2:  0.5rem;
+  --sp-3:  0.75rem;
+  --sp-4:  1rem;
+  --sp-6:  1.5rem;
+  --sp-8:  2rem;
+  --sp-12: 3rem;
+  --sp-16: 4rem;
+  --sp-24: 6rem;
+  --sp-32: 8rem;
+  --sp-48: 12rem;
+
+  /* --- Measure ----------------------------------------------------------- */
+  --container:        1200px;
+  --container-narrow: 720px;                   /* prose sections */
+  --gutter:           clamp(1.25rem, 4vw, 3rem);
+
+  /* --- Breakpoints -------------------------------------------------------
+     Documentation and JS matchMedia strings only. CSS custom properties
+     cannot be used inside a media query condition, so every stylesheet in
+     this project writes the literal px value and nothing else. */
+  --bp-sm: 600px;   /* grid collapses to 1 column */
+  --bp-md: 720px;   /* header links collapse; 3D viewer falls back to a still */
+  --bp-lg: 900px;   /* grid collapses to 6 columns */
+  --bp-xl: 901px;   /* the motion gate: at and above this width, pins and
+                       scrubs run. Below it, none do. */
+
+  /* --- Easing family -----------------------------------------------------
+     One family, used everywhere. core/motion.ts mirrors these exact curves
+     as JS arrays for GSAP. */
+  --ez-out-expo:  cubic-bezier(0.19, 1, 0.22, 1);     /* reveals, draws */
+  --ez-out-quart: cubic-bezier(0.165, 0.84, 0.44, 1); /* hovers, small moves */
+  --ez-in-out:    cubic-bezier(0.77, 0, 0.175, 1);    /* transitions, wipes */
+  --ez-linear:    linear;                             /* scrubs only */
+
+  /* --- Durations --------------------------------------------------------- */
+  --dur-micro:  240ms;   /* hovers, focus, small state changes */
+  --dur-reveal: 600ms;   /* enter-viewport reveals */
+  --dur-draw:   900ms;   /* rule draws, arc draws */
+  --dur-hero:  1400ms;   /* the hero beat */
+}

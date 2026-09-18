@@ -1,0 +1,217 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Motion core harness</title>
+<!--
+  WP-03 standalone harness for src/core/motion.ts, scroll.ts and observe.ts.
+  It loads no section code, no copy, and no stylesheet from src/styles, so the
+  motion core is exercised in isolation.
+
+  Run:  npx vite            then open  /qa/motion-harness.html
+  Reduced-motion run:       /qa/motion-harness.html?reduce=1
+  (the query param patches matchMedia before the modules load, so the
+   no-Lenis native driver path can be tested without OS settings)
+-->
+<style>
+  :root {
+    --paper: #FAF9F7;
+    --ink: #14171A;
+    --ink-muted: #5C6570;
+    --rule: #E2DFD9;
+    --accent: #1F6B4A;
+    --ez-out-expo: cubic-bezier(0.19, 1, 0.22, 1);
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--paper); color: var(--ink); }
+  body {
+    font: 16px/1.65 -apple-system, system-ui, sans-serif;
+    padding: 0 24px 40vh;
+  }
+  h1 { font-size: 24px; margin: 24px 0 8px; }
+  p { color: var(--ink-muted); max-width: 34em; }
+  .mono { font: 13px/1.5 ui-monospace, 'SF Mono', Menlo, monospace; }
+
+  /* Mirror of the WP-02 reveal primitives, inlined so the harness stands alone. */
+  .reveal { opacity: 0; transform: translateY(14px); }
+  .is-revealed {
+    opacity: 1;
+    transform: none;
+    transition: opacity 600ms var(--ez-out-expo), transform 600ms var(--ez-out-expo);
+  }
+  .no-motion .reveal { opacity: 1; transform: none; transition: none; }
+  .no-motion .is-revealed { transition: none; }
+
+  .panel {
+    position: fixed; top: 12px; right: 12px; z-index: 10;
+    background: #fff; border: 1px solid var(--rule); border-radius: 4px;
+    padding: 10px 12px; min-width: 260px;
+  }
+  .panel b { color: var(--accent); }
+  .spacer { height: 70vh; }
+  .card {
+    border: 1px solid var(--rule); background: #fff; border-radius: 4px;
+    padding: 16px; margin: 0 0 16px;
+  }
+  .depth {
+    border: 1px solid var(--rule); background: #fff; border-radius: 4px;
+    padding: 24px 16px; margin: 0 0 16px; width: 320px;
+  }
+  .row { display: flex; gap: 24px; align-items: flex-start; flex-wrap: wrap; }
+  .fail { color: #A03226; }
+</style>
+</head>
+<body>
+
+<div class="panel mono">
+  <div>driver: <b id="driver">...</b></div>
+  <div>no-motion class: <b id="nomo">...</b></div>
+  <div>y: <b id="y">0</b></div>
+  <div>velocity: <b id="v">0</b></div>
+  <div>progress: <b id="p">0</b></div>
+  <div>broadcasts: <b id="n">0</b></div>
+  <div>subscribers alive: <b id="subs">0</b></div>
+  <div>console errors: <b id="errs">0</b></div>
+  <div>opacity-0 reveals: <b id="hidden">0</b></div>
+  <div id="verdict"></div>
+</div>
+
+<h1>Motion core harness</h1>
+<p>
+  Exercises the scroll broadcast, the reveal helper with its will-change
+  lifecycle, and the parallax subscriber. Scroll down. The panel updates from a
+  single rAF broadcast. Add <span class="mono">?reduce=1</span> to the URL to run
+  the reduced-motion contract: no Lenis, native driver, every reveal settled at
+  once, no parallax, no will-change.
+</p>
+<p class="mono">
+  <button id="unsub" type="button">unsubscribe the test subscriber</button>
+  <button id="jump" type="button">scrollToTarget('#target')</button>
+</p>
+
+<div class="row">
+  <div class="depth" data-depth="mid">data-depth="mid" (factor 0.94)</div>
+  <div class="depth" data-depth="far">data-depth="far" (factor 0.86)</div>
+  <div class="depth">no attribute (near, factor 1.00, never transformed)</div>
+</div>
+
+<div class="spacer"></div>
+
+<h2 class="reveal" id="r1">Reveal one</h2>
+<div class="card reveal">Single reveal, no delay.</div>
+
+<div class="spacer"></div>
+
+<div class="row" id="group">
+  <div class="card reveal" style="width:200px">group 1</div>
+  <div class="card reveal" style="width:200px">group 2</div>
+  <div class="card reveal" style="width:200px">group 3</div>
+  <div class="card reveal" style="width:200px">group 4</div>
+</div>
+
+<div class="spacer"></div>
+
+<div class="row">
+  <div class="depth" data-depth="far">deep parallax, far down the page (clamped at 80px)</div>
+  <div class="depth" data-depth="mid">mid parallax, far down the page</div>
+</div>
+
+<div class="spacer"></div>
+
+<h2 id="target">observeOnce target</h2>
+<div class="card" id="lazy">waiting for observeOnce at 150% viewport height...</div>
+
+<div class="spacer"></div>
+<div class="spacer"></div>
+
+<script>
+  // Count console errors and unhandled rejections for the section 16.6 gate.
+  window.__errs = 0;
+  const realError = console.error.bind(console);
+  console.error = function () { window.__errs += 1; realError.apply(null, arguments); };
+  window.addEventListener('error', function () { window.__errs += 1; });
+  window.addEventListener('unhandledrejection', function () { window.__errs += 1; });
+
+  // Optional reduced-motion simulation, applied BEFORE the modules load.
+  if (new URLSearchParams(location.search).has('reduce')) {
+    const real = window.matchMedia.bind(window);
+    window.matchMedia = function (q) {
+      if (q.indexOf('prefers-reduced-motion: reduce') > -1) {
+        return { matches: true, media: q, onchange: null,
+          addEventListener: function () {}, removeEventListener: function () {},
+          addListener: function () {}, removeListener: function () {},
+          dispatchEvent: function () { return false; } };
+      }
+      if (q.indexOf('prefers-reduced-motion: no-preference') > -1) {
+        return { matches: false, media: q, onchange: null,
+          addEventListener: function () {}, removeEventListener: function () {},
+          addListener: function () {}, removeListener: function () {},
+          dispatchEvent: function () { return false; } };
+      }
+      return real(q);
+    };
+  }
+</script>
+
+<script type="module">
+  import { initMotion, prefersReducedMotion, EZ, DUR, MQ_DESKTOP_MOTION } from '/src/core/motion.ts';
+  import { initScroll, onScroll, scrollToTarget, getLenis } from '/src/core/scroll.ts';
+  import { reveal, revealGroup, observeOnce } from '/src/core/observe.ts';
+
+  initMotion();
+  initScroll();
+
+  reveal(document.getElementById('r1'));
+  reveal(document.querySelector('.card.reveal'));
+  revealGroup(document.querySelectorAll('#group .reveal'), 90);
+
+  observeOnce(document.getElementById('lazy'), () => {
+    document.getElementById('lazy').textContent = 'observeOnce fired once. This is the WP-07 lazy-load hook.';
+  }, '0px 0px 150% 0px');
+
+  const $ = (id) => document.getElementById(id);
+  let n = 0;
+  let alive = 1;
+
+  const stop = onScroll((s) => {
+    n += 1;
+    $('y').textContent = Math.round(s.y);
+    $('v').textContent = s.velocity.toFixed(2);
+    $('p').textContent = s.progress.toFixed(4);
+    $('n').textContent = n;
+  });
+
+  $('unsub').addEventListener('click', () => {
+    stop();
+    alive = 0;
+    $('subs').textContent = '0 (panel now frozen, parallax still running)';
+  });
+  $('jump').addEventListener('click', () => scrollToTarget('#target'));
+
+  $('driver').textContent = getLenis() ? 'lenis' : 'native (reduced motion)';
+  $('nomo').textContent = String(document.documentElement.classList.contains('no-motion'));
+  $('subs').textContent = String(alive);
+
+  // Section 19 assertion: with reduced motion on, nothing may sit at opacity 0.
+  function audit() {
+    let hidden = 0;
+    document.querySelectorAll('.reveal').forEach((el) => {
+      if (parseFloat(getComputedStyle(el).opacity) === 0) hidden += 1;
+    });
+    $('hidden').textContent = String(hidden);
+    $('errs').textContent = String(window.__errs);
+    const reduced = prefersReducedMotion();
+    const bad = (reduced && hidden > 0) || window.__errs > 0;
+    $('verdict').className = bad ? 'fail' : '';
+    $('verdict').textContent = bad ? 'FAIL' : 'ok';
+    requestAnimationFrame(() => setTimeout(audit, 500));
+  }
+  audit();
+
+  // Prove the exports are the shapes the contract promises.
+  console.log('EZ', EZ, 'DUR', DUR, 'MQ', MQ_DESKTOP_MOTION);
+</script>
+
+</body>
+</html>

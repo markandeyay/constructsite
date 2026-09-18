@@ -1,0 +1,229 @@
+/* ============================================================
+   layout.css
+   Owner: WP-05. Containers, the 12 column grid, the section
+   shell, the section head, prose primitives, #main and the
+   skip link anchor point.
+
+   Consumes tokens from tokens.css (WP-02). Defines no tokens.
+   Specificity ceiling per spec 18.3: no !important, no :not()
+   chains, no bare img selectors.
+
+   Breakpoints are the fixed table in spec 5.4: 600, 720, 900,
+   901. Custom properties cannot appear in a media query
+   condition, so the literal px value is written here.
+   ============================================================ */
+
+/* ---------- Containers ---------- */
+
+.container {
+  width: 100%;
+  max-width: var(--container);
+  margin-inline: auto;
+  padding-inline: var(--gutter);
+}
+
+.container--narrow {
+  max-width: var(--container-narrow);
+}
+
+/* ---------- The 12 column grid ---------- */
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: var(--sp-6);
+}
+
+@media (max-width: 900px) {
+  .grid {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 600px) {
+  .grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* ---------- Section shell ---------- */
+
+/* `main > section` is the defensive default so every shell in
+   index.html gets the rhythm whether or not it carries the
+   class. `.section` is the explicit opt in for anything mounted
+   outside main, for example the QA gallery. */
+main > section,
+.section {
+  padding-block: clamp(var(--sp-16), 12vh, var(--sp-32));
+  scroll-margin-top: 80px;
+}
+
+/* ---------- Document shell ---------- */
+
+#main {
+  display: block;
+  /* clears the fixed 64px header from spec 7.0 */
+  padding-block-start: 64px;
+}
+
+/* ---------- Skip link positioning ----------
+   Visual treatment lives in components.css with the rest of the
+   chrome. Only the stacking context belongs here. */
+.skip-link {
+  position: absolute;
+  z-index: 200;
+}
+
+/* ---------- Section head, spec 5.5 ---------- */
+
+.sec-head {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: baseline;
+  column-gap: var(--sp-3);
+  row-gap: var(--sp-4);
+  margin-block-end: var(--sp-12);
+}
+
+.sec-head__num {
+  grid-column: 1;
+  font-family: var(--font-mono);
+  font-size: var(--t-micro);
+  line-height: 1.5;
+  letter-spacing: 0.08em;
+  color: var(--ink-faint);
+  font-variant-numeric: tabular-nums;
+}
+
+.sec-head__kicker {
+  grid-column: 2;
+  font-family: var(--font-mono);
+  font-size: var(--t-micro);
+  line-height: 1.5;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+}
+
+.sec-head__title {
+  grid-column: 1 / -1;
+  margin: 0;
+  max-width: 20ch;
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: var(--t-h2);
+  line-height: 1.15;
+  color: var(--ink);
+  /* The per word clip reveal on this title is WP-08's job via
+     fx/splitText.ts. Nothing here sets opacity on the title, so
+     the heading is always readable if that never runs. */
+}
+
+.sec-head__rule {
+  grid-column: 1 / -1;
+  width: 100%;
+  height: 1px;
+  margin: 0;
+  border: 0;
+  background: var(--rule);
+  transform: scaleX(0);
+  transform-origin: left center;
+  transition: transform 900ms var(--ez-out-expo);
+}
+
+/* ---------- Section head enter, driven by .is-revealed ----------
+   WP-03's IntersectionObserver toggles `.is-revealed`. The rule
+   draws out from the left; the numeral and kicker fade up with a
+   60ms stagger. */
+
+.sec-head__num,
+.sec-head__kicker {
+  opacity: 0;
+  transform: translateY(10px);
+  transition:
+    opacity 600ms var(--ez-out-expo),
+    transform 600ms var(--ez-out-expo);
+}
+
+.sec-head.is-revealed .sec-head__rule {
+  transform: scaleX(1);
+}
+
+.sec-head.is-revealed .sec-head__num {
+  opacity: 1;
+  transform: none;
+  transition-delay: 0ms;
+}
+
+.sec-head.is-revealed .sec-head__kicker {
+  opacity: 1;
+  transform: none;
+  transition-delay: 60ms;
+}
+
+/* Reduced motion, spec 13.1: settled state, no transition, and
+   nothing left sitting at opacity 0. */
+.no-motion .sec-head__num,
+.no-motion .sec-head__kicker {
+  opacity: 1;
+  transform: none;
+  transition: none;
+}
+
+.no-motion .sec-head__rule {
+  transform: none;
+  transition: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sec-head__num,
+  .sec-head__kicker {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+
+  .sec-head__rule {
+    transform: none;
+    transition: none;
+  }
+}
+
+/* ---------- Prose and text primitives, spec 5.3 ---------- */
+
+.prose {
+  /* 68 characters */
+  max-width: 34em;
+  line-height: 1.65;
+  color: var(--ink-muted);
+}
+
+.prose > p {
+  margin-block: 0 var(--sp-6);
+}
+
+.prose > p:last-child {
+  margin-block-end: 0;
+}
+
+.lede {
+  max-width: 34em;
+  font-size: var(--t-lede);
+  line-height: 1.45;
+  color: var(--ink-muted);
+}
+
+.mono {
+  font-family: var(--font-mono);
+  line-height: 1.5;
+  font-variant-numeric: tabular-nums;
+}
+
+.micro {
+  font-family: var(--font-mono);
+  font-size: var(--t-micro);
+  line-height: 1.5;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
